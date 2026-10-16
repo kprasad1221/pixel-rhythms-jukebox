@@ -1,6 +1,26 @@
-# Pixel Rhythms · Omni prototype 0.1.6
+# Pixel Rhythms · Omni prototype 0.1.7
 
 A ten-pad extension of KP's existing glass Jukebox. Same two playback decks, crossfades, master volume, waveform and stereo meters. Each pad can hold an existing loop, one Krea image, one Daydream reference, and an authored prompt. Musical variation in the generated soundtrack is intentional.
+
+## 0.1.7: display incoming video first
+
+This is a smaller integration step: **Check inputs → Show free live pattern → Generate and watch one clip**. Generate stays disabled until the free live-pattern display passes in this visit. The toolbar generation mode has been removed. Pads always play local loops/takes. Only the explicit **Generate and watch one clip** action can request paid generation after its one-attempt checkbox is enabled.
+
+Incoming Reactor tracks are attached directly to the visible LIVE PREVIEW video element with `srcObject`, then the single clip's `play` command is sent. The preview starts muted, with native video controls available. `requestVideoFrameCallback` reports the first displayed frame and counts frame callbacks separately from SDK track availability or inbound decoded-frame stats. A rejected browser play, video-element error, or no displayed frame within eight seconds requests session cleanup. The preview is not a recorder: it creates no generated pad take and no downloadable video. Recording is deliberately absent from this generation path until direct display is verified.
+
+On `clip_finished`, the session disconnects immediately; there is no capture/drain wait. Final frames may be cut short by disconnect or the unchanged overall deadline. The requested server session limit remains 30 seconds, the local attempt deadline remains 25 seconds, and disconnect failure still blocks further attempts in this page. These limits are unchanged; no new paid test was performed. The October 15 22:08 Anchorage attempt cost $0.21 by observed balance change and ended CLOSED. It decoded 139 video frames, but the previous recorder returned no usable bytes and the local deadline interrupted its final capture wait. That observation does not establish why recording failed.
+
+First test after updating to **0.1.7**:
+
+1. Open Arrange pads. Leave paid generation unchecked.
+2. Click **Show free live pattern**. A moving rectangle and increasing frame number should appear in LIVE PREVIEW for three seconds. The result reports displayed frame callbacks. This uses a local canvas MediaStream attached to the same video element and helper as Reactor tracks; no recorder, API call, camera or microphone is used.
+3. Share the free test result before considering another paid attempt. This is a local MediaStream display check, **not** proof of receiving Reactor WebRTC media.
+
+The earlier free pad recording/download check remains in the collapsed **Earlier local recording test** section. It retains its temporary take behavior and does not replace original assignments. Existing generated takes from a previous visit are not made persistent by this change.
+
+Verification: 41 offline tests and build pass. The Chromium browser check displayed 67 direct-stream frame callbacks at 640×360, then verified the independent free pad recording/playback/crossfade/download/reload path. It made zero token and external requests and reported no browser errors. An offline regression makes MediaRecorder construction throw and verifies that generation orchestration still attaches tracks, sends one play command, and disconnects. A local WebRTC peer-to-peer test could not establish ICE candidates in this execution environment; remote-stream behavior has not been reproduced here. No claim of live Reactor display or generated-video saving is made.
+
+Update: End Reactor, stop the local server, `git pull --ff-only`, `npm.cmd run dev`, and refresh the same `http://127.0.0.1:8093` address. `.env.local`, SDK version, and IndexedDB schema are unchanged. This revision does not authorize another paid test. The older sections below are historical implementation notes.
 
 ## 0.1.6: restore connection handshake polling
 

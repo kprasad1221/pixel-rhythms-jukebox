@@ -1,7 +1,7 @@
 import { Reactor } from '@reactor-team/js-sdk';
 import { ClipEvents } from './events.js';
 import { validatePad, promptFor } from './pads.js';
-import { recordingType, startCapture, trackState } from './capture.js';
+import { trackState } from './capture.js';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function validateMedia(pad) {
@@ -26,12 +26,11 @@ async function validateMedia(pad) {
 }
 
 export class OmniSession {
-  constructor(onStatus, onActivity = () => {}, ReactorClient = Reactor, limits = {}) { this.onStatus = onStatus; this.onActivity = onActivity; this.ReactorClient = ReactorClient; this.reactor = null; this.epoch = 0; this.recorder = null; this.timer = null; this.disconnectUnconfirmed = false; this.trackCleanups = []; this.attemptTimeoutMs = limits.attemptTimeoutMs ?? 25000; this.disconnectTimeoutMs = limits.disconnectTimeoutMs ?? 5000; this.inFlight = false; this.endPromise = null; }
+  constructor(onStatus, onActivity = () => {}, ReactorClient = Reactor, limits = {}) { this.onStatus = onStatus; this.onActivity = onActivity; this.ReactorClient = ReactorClient; this.reactor = null; this.epoch = 0; this.disconnectUnconfirmed = false; this.trackCleanups = []; this.attemptTimeoutMs = limits.attemptTimeoutMs ?? 25000; this.disconnectTimeoutMs = limits.disconnectTimeoutMs ?? 5000; this.inFlight = false; this.endPromise = null; this.onStream = limits.onStream ?? (() => {}); }
   log(stage, message, level = 'info') { this.onActivity(stage, message, level); }
   async checkInputs(pad) {
     this.phase = 'Local validation';
-    this.log(this.phase, 'Reading local image dimensions, audio duration and capture support.');
-    recordingType();
+    this.log(this.phase, 'Reading local image dimensions and audio duration.');
     await validateMedia(pad);
   }
   async connect() {
@@ -54,8 +53,8 @@ export class OmniSession {
       const id = message?.data?.clip?.clip_id;
       if (message.type === 'clip_generated') this.log('Generation', `clip_generated received for ${id}; ready for stream reception.`);
       if (message.type === 'clip_failed') this.log('Generation', `clip_failed for ${id}: ${message.data.reason || 'No reason provided.'}`, 'error');
-      if (message.type === 'clip_started') this.log('Reception', `clip_started for ${id}; Reactor is sending the passage. Local Jukebox playback has not started.`);
-      if (message.type === 'clip_finished') this.log('Reception', `clip_finished for ${id}; Reactor reports media sent. Finishing browser capture.`);
+      if (message.type === 'clip_started') this.log('Reception', `clip_started for ${id}; Reactor is sending the passage. The live preview should now receive media; displayed frames are logged separately.`);
+      if (message.type === 'clip_finished') this.log('Reception', `clip_finished for ${id}; Reactor reports media sent. Ending this single live-preview passage.`);
     });
     reactor.on('trackReceived', (name, track) => {
       this.tracks.set(name, track);
@@ -126,7 +125,7 @@ export class OmniSession {
         }),
       ]);
       clearTimeout(deadline);
-      this.log('Connection', 'Capture finished; terminating Reactor before local playback.');
+      this.log('Connection', 'Live passage finished; terminating Reactor. No recording was requested.');
       await this.end();
       return take;
     } catch (error) {
@@ -178,27 +177,16 @@ export class OmniSession {
       }
       onPhase('Receiving passage');
       const media = new MediaStream([this.tracks.get('main_video'), this.tracks.get('main_audio')]);
-      this.phase = 'Capture';
+      this.phase = 'Live preview';
+      this.log('Live preview', 'Attaching incoming tracks directly to the visible video element. Recording is disabled.');
+      this.onStream(media);
+      assertCurrent();
       await this.logIncomingMedia('Before Reactor play'); assertCurrent();
-      const capture = startCapture(media, (...args) => this.log(...args));
-      this.recorder = capture.recorder;
-      this.log('Capture', 'Recorder armed; requesting Reactor stream playback.');
-      const startedAt = performance.now();
       await this.command('play', { clip_id: id }, false);
-      this.log('Reception', 'Play command sent; awaiting clip_finished (within the overall attempt time limit). This is offstage stream reception.');
+      this.log('Reception', 'Play command sent; live video is displayed as it arrives. Waiting for clip_finished within the attempt limit.');
       await this.events.wait('clip_finished', id, 90000); assertCurrent();
       await this.logIncomingMedia('At clip_finished'); assertCurrent();
-      // clip_finished describes sent media, not browser presentation. Allow
-      // transport drain. This v0.1 capture can include boundary padding; live
-      // A/V alignment and loop seams need a laptop test, not a seamless claim.
-      await wait(Math.max(1000, pad.seconds * 1000 + 1000 - (performance.now() - startedAt)));
-      assertCurrent();
-      await this.logIncomingMedia('After transport drain'); assertCurrent();
-      for (const [name, track] of this.tracks) this.log('Reception', `Before recorder stop · ${name} · ${trackState(track)}`);
-      const blob = await capture.finish(); assertCurrent();
-      this.recorder = null;
-      this.log('Capture', `Captured ${blob.size} bytes (${blob.type}). Local playback has not been verified yet.`);
-      return { blob, clipId: id, source: 'reactor', seconds: pad.seconds, prompt: promptFor(pad), createdAt: new Date().toISOString() };
+      return { clipId: id, source: 'reactor-live', seconds: pad.seconds };
     } catch (error) {
       this.log(this.phase || 'Local validation', `Stopped: ${error.message}`, 'error');
       // A timed-out operation can settle later; it must not end a newer session.
@@ -214,16 +202,10 @@ export class OmniSession {
   }
   async finishSession() {
     this.epoch++;
-    clearTimeout(this.timer);
     this.events?.close();
     for (const cleanup of this.trackCleanups.splice(0)) {
       try { cleanup(); } catch { /* Listener cleanup must not prevent disconnect. */ }
     }
-    if (this.recorder?.state !== 'inactive' && this.recorder) {
-      try { this.recorder.stop(); }
-      catch (error) { this.log('Capture', `Recorder cleanup failed: ${error.message}. Continuing Reactor disconnect.`, 'error'); }
-    }
-    this.recorder = null;
     const reactor = this.reactor; this.reactor = null;
     if (reactor) {
       this.log('Connection', 'Disconnect requested. In-flight charges are not cancelled by local playback stopping.');

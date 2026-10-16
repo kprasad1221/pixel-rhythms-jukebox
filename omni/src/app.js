@@ -3,6 +3,7 @@ import { loadPads, savePads } from './store.js';
 import { createPlayer } from './player.js';
 import { OmniSession } from './reactor.js';
 import { testBrowserCapture } from './capture.js';
+import { createLivePreview, createPatternStream } from './live-preview.js';
 import { createActivity, safeLogText } from './activity.js';
 
 const $ = selector => document.querySelector(selector);
@@ -15,17 +16,18 @@ function report(stage, message, level = 'info') {
   const text = `${attemptContext ? attemptContext + ' · ' : ''}${stage}: ${safeLogText(message)}`;
   $('#attempt-status').textContent = text;
   $('#attempt-status').dataset.error = String(level === 'error');
+  if (stage === 'Live preview' || (pending !== null && level === 'error')) { $('#live-preview-status').textContent = safeLogText(message); $('#live-preview-status').dataset.error = String(level === 'error'); }
   status(text);
 }
 function renderInputs() {
-  $('#generate-label').textContent = `Generate pad ${edited+1} · ${pads[edited].name}`;
+  $('#generate-label').textContent = `Live video check · Pad ${edited+1} · ${pads[edited].name}`;
   $('#input-issues').replaceChildren(...padIssues(pads[edited]).map(text => {
     const item = document.createElement('li'); item.textContent = text; return item;
   }));
 }
 
 let pads = defaultPads(), edited = 0, activePad = -1, pending = null, imagePreviewURL = null;
-let persistence = true;
+let persistence = true, liveDisplayChecked = false;
 const takes = new Map();
 const colors = ['54,204,234','166,146,228','72,161,213','88,195,191','211,182,111'];
 const buttons = pads.map((pad, i) => {
@@ -37,10 +39,12 @@ const buttons = pads.map((pad, i) => {
   return button;
 });
 const player = createPlayer(status, id => { activePad = id; renderPads(); });
-const omni = new OmniSession(sessionStatus, report);
+const livePreview = createLivePreview($('#live-preview'), report, () => { void omni.end(); });
+const omni = new OmniSession(sessionStatus, report, undefined, {
+  onStream: stream => livePreview.attach(stream, `Reactor Pad ${pending + 1}`),
+});
 
 function renderPads() {
-  const generating = $('#play-mode').value === 'generate';
   pads.forEach((pad, i) => {
     const button = buttons[i];
     button.querySelector('.pad-name').textContent = pad.name;
@@ -48,17 +52,19 @@ function renderPads() {
     button.setAttribute('aria-pressed', String(activePad === i));
     button.setAttribute('aria-label', `${pad.name}, ${pad.group}, key ${pad.key.toUpperCase()}`);
     button.classList.toggle('pending', pending === i);
-    button.disabled = generating && pending !== null;
+    button.disabled = false;
   });
   $('#pad-count').textContent = `${pads.filter(p => p.clip).length}/10 loops · ${pads.filter(p => p.image && p.audio && p.prompt.trim()).length}/10 generation presets`;
   const take = takes.get(edited);
   $('#download-take').disabled = !take;
   $('#download-take').textContent = take?.source === 'local-capture-test' ? `Download Pad ${edited+1} test clip` : `Download Pad ${edited+1} latest take`;
   $('#test-capture').textContent = `Create free test clip for Pad ${edited+1}`;
-  $('#take-status').textContent = take?.source === 'local-capture-test' ? `Pad ${edited+1} holds a temporary LOCAL TEST clip. In Play loops, press Pad ${edited+1} to play it. Download it before reloading. Your original loop is still assigned.` : take ? `Pad ${edited+1} holds a captured Reactor take for this visit. Download before reloading.` : `Pad ${edited+1} has no temporary take. In Play loops it uses its assigned existing loop.`;
-  $('#generate-pad').disabled = pending !== null;
+  $('#take-status').textContent = take?.source === 'local-capture-test' ? `Pad ${edited+1} holds a temporary LOCAL TEST clip. Press Pad ${edited+1} to play it. Download it before reloading. Your original loop is still assigned.` : take ? `Pad ${edited+1} holds a captured Reactor take for this visit. Download before reloading.` : `Pad ${edited+1} has no temporary take. It uses its assigned existing loop.`;
+  $('#generate-pad').disabled = pending !== null || !liveDisplayChecked;
+  $('#generate-pad').title = liveDisplayChecked ? 'Upload references and watch one paid live passage.' : 'Show the free live pattern successfully first.';
   $('#check-inputs').disabled = pending !== null;
   $('#test-capture').disabled = pending !== null;
+  $('#test-live').disabled = pending !== null;
 }
 function selectEditor(id) {
   edited = id; const pad = pads[id];
@@ -91,7 +97,7 @@ function download(blob, name) { const url = URL.createObjectURL(blob); const anc
 async function activate(id, existingOnly = false, explicitGenerate = false) {
   readEditor();
   const pad = { ...pads[id] }, label = `${pad.name} · ${pad.group}`;
-  const generate = explicitGenerate || (!existingOnly && $('#play-mode').value === 'generate');
+  const generate = explicitGenerate;
   if (!generate) {
     const take = existingOnly ? null : takes.get(id);
     const media = existingOnly ? pad.clip : (take?.blob || pad.clip);
@@ -103,6 +109,7 @@ async function activate(id, existingOnly = false, explicitGenerate = false) {
     return;
   }
   if (pending !== null || player.busy) { status('Let the current request or fade finish first.'); activity.add('Local validation', 'Another request or fade is still active; no new request sent.'); return; }
+  if (!liveDisplayChecked) { report('Local validation', 'Show free live pattern first. No connection or request made.', 'error'); return; }
   attemptContext = `Attempt ${++attemptNumber} / pad ${id+1} (${pad.name})`;
   report('Local validation', 'Checking assigned prompt, image, audio and duration.');
   try { validatePad(pad); }
@@ -117,18 +124,15 @@ async function activate(id, existingOnly = false, explicitGenerate = false) {
   $('#allow-generation').checked = false; // Consent applies to this attempt only.
   pending = id; renderPads(); $('#working').hidden = false; $('#working-label').textContent = `Preparing ${pad.name}`;
   try {
-    // Unlock local sound during the pad gesture, before the network wait.
-    report('Playback', 'Unlocking browser audio for eventual local playback.');
-    await player.unlock();
-    const take = await omni.generate(pad, phase => { $('#working-label').textContent = `${phase} · ${pad.name}`; sessionStatus(`${phase} · ${pad.name}`); });
-    takes.set(id, take); $('#play-mode').value = 'loops'; renderPads();
-    $('#working-label').textContent = `Ready · ${pad.name}`;
-    report('Playback', 'Loading captured passage into the local Jukebox.');
-    try { await player.play(take.blob, `${label} · new take`, id); report('Playback', 'Local playback started and fade completed.'); }
-    catch (error) { report('Playback', `${error.message} Captured take retained: choose Play loops and tap this pad to retry, or Save latest take.`, 'error'); }
-    sessionStatus(omni.disconnectUnconfirmed ? 'Passage captured, but termination could not be confirmed. Check Reactor session state.' : 'Passage captured. Reactor disconnected before local playback.');
+    livePreview.reset();
+    $('#live-preview-status').textContent = 'Preparing one live passage. Video will appear here as it arrives. Recording is disabled.';
+    $('#live-preview-area').scrollIntoView({ block: 'center', behavior: 'auto' });
+    await omni.generate(pad, phase => { $('#working-label').textContent = `${phase} · ${pad.name}`; sessionStatus(`${phase} · ${pad.name}`); $('#live-preview-status').textContent = `${phase} · ${pad.name}. Recording disabled.`; });
+    const frames = livePreview.finish('Reactor passage ended.');
+    report('Live preview', frames ? `Live test ended after ${frames} displayed frame callbacks. No new pad take or download was created.` : 'The session ended without a displayed-frame callback. Live playback is not verified.');
+    sessionStatus(omni.disconnectUnconfirmed ? 'Termination could not be confirmed. Check Reactor session state.' : 'Reactor disconnected. Live-preview test ended; pad assignments retained.');
   } catch (error) { report('Attempt stopped', `${error.message} Current local clip retained. See the preceding stage for where it stopped.`, 'error'); sessionStatus(omni.disconnectUnconfirmed ? 'Disconnect could not be confirmed. Check Reactor session state.' : omni.reactor ? 'Reactor is still connected. Use End Reactor.' : 'Reactor is off.'); }
-  finally { pending = null; $('#working').hidden = true; renderPads(); }
+  finally { livePreview.finish('Attempt cleanup completed.'); pending = null; $('#working').hidden = true; renderPads(); }
 }
 
 $('#arrange').addEventListener('click', () => { $('#editor').open = !$('#editor').open; if ($('#editor').open) $('#editor').scrollIntoView({ block: 'nearest' }); });
@@ -148,7 +152,6 @@ $('#test-capture').addEventListener('click', async () => {
     report('Local capture test', 'This pad already has a generated take. Choose another pad for the local test so that take is retained.', 'error'); return;
   }
   $('#allow-generation').checked = false;
-  $('#play-mode').value = 'loops';
   pending = id; renderPads();
   const preview = $('#capture-test-preview');
   preview.pause(); preview.hidden = true; preview.removeAttribute('src'); preview.load();
@@ -159,11 +162,29 @@ $('#test-capture').addEventListener('click', async () => {
     takes.set(id, { blob, clipId: `local-test-${Date.now()}`, source: 'local-capture-test', seconds: 3,
       prompt: 'Synthetic local capture test: moving rectangle and 220 Hz tone. No Reactor generation or authored references used.', createdAt: new Date().toISOString() });
     capturePreviewURL = URL.createObjectURL(blob); preview.src = capturePreviewURL; preview.hidden = false; preview.load();
-    report('Local capture test', `Recorded ${blob.size} bytes as pad ${id+1}’s temporary LOCAL TEST take. Play loops is selected and paid generation disabled. Press pad ${id+1}, then use Download test clip for that pad. Original media assignments are retained. This does not verify Reactor reception.`);
+    report('Local capture test', `Recorded ${blob.size} bytes as pad ${id+1}’s temporary LOCAL TEST take. Paid generation is disabled. Press pad ${id+1}, then use Download test clip for that pad. Original media assignments are retained. This does not verify Reactor reception.`);
   } catch (error) { report('Local capture test', error.message, 'error'); }
   finally { pending = null; renderPads(); }
 });
 $('#capture-test-preview').addEventListener('playing', () => activity.add('Local capture test', 'Local test recording playback started. No Reactor connection made.'));
+$('#test-live').addEventListener('click', async () => {
+  if (pending !== null) return;
+  if (omni.reactor || omni.disconnectUnconfirmed) { report('Live preview', 'End Reactor and confirm its session is closed before the free test.', 'error'); return; }
+  $('#allow-generation').checked = false;
+  attemptContext = `Free live check ${++attemptNumber}`;
+  pending = edited; renderPads();
+  let pattern;
+  try {
+    pattern = createPatternStream();
+    livePreview.attach(pattern.stream, 'FREE LIVE PATTERN');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    if (!livePreview.frames) throw new Error('No pattern frame was displayed. Do not enable generation.');
+    liveDisplayChecked = true;
+    const frames = livePreview.finish('Three-second free pattern finished.');
+    report('Live preview', `FREE LIVE PATTERN displayed ${frames} frame callbacks. No Reactor connection, recording, or upload was made.`);
+  } catch (error) { report('Live preview', error.message, 'error'); }
+  finally { pattern?.stop(); livePreview.finish('Free test cleanup completed.'); pending = null; renderPads(); }
+});
 $('#generate-pad').addEventListener('click', () => activate(edited, false, true));
 $('#check-inputs').addEventListener('click', async () => {
   if (pending !== null) return;
@@ -171,7 +192,7 @@ $('#check-inputs').addEventListener('click', async () => {
   const id = edited, pad = { ...pads[id] };
   attemptContext = `Check ${++attemptNumber} / pad ${id+1} (${pad.name})`;
   pending = id; renderPads();
-  try { await omni.checkInputs(pad); report('Local validation', 'Inputs and browser capture support pass local checks. No connection, upload or request made. Reactor may still refuse a request.'); }
+  try { await omni.checkInputs(pad); report('Local validation', 'Image and audio pass local checks. No connection, upload or request made. Reactor may still refuse a request.'); }
   catch (error) { report('Local validation', `${error.message} No connection, upload or request made.`, 'error'); }
   finally { pending = null; renderPads(); }
 });
@@ -181,7 +202,6 @@ $('#copy-log').addEventListener('click', async () => {
   catch { $('#copy-status').textContent = 'Copy unavailable. Select and copy the log text directly.'; }
 });
 $('#audition').addEventListener('click', () => activate(edited, true));
-$('#play-mode').addEventListener('change', () => { renderPads(); if ($('#play-mode').value === 'generate') { status('Generate variations: pads request a new passage when paid generation is enabled. Arrange pads also has an explicit Generate button and free Check inputs.'); } });
 $('#end').addEventListener('click', async () => { $('#allow-generation').checked = false; activity.add('Connection', 'End Reactor pressed.'); const ended = await omni.end(); sessionStatus(ended ? 'Reactor is off. Local loops remain available.' : 'Disconnect could not be confirmed. Check Reactor session state.'); });
 $('#download-take').addEventListener('click', () => {
   const take = takes.get(edited); if (!take) return;
@@ -218,6 +238,6 @@ try { pads = await loadPads(pads); } catch { persistence = false; }
 rebuildOptions(); selectEditor(0);
 activity.add('Local validation', 'App ready · SDK 3.1.0. No Reactor connection made. Saved pad storage unchanged.');
 if (!pads.some(pad => pad.clip || pad.image)) $('#editor').open = true;
-try { const config = await fetch('/api/config').then(r => r.json()); if (!config.configured) sessionStatus('Reactor key not configured. Arrange pads and Play loops are ready to use.'); }
+try { const config = await fetch('/api/config').then(r => r.json()); if (!config.configured) sessionStatus('Reactor key not configured. Local loop pads and free tests are available.'); }
 catch { sessionStatus('Start the local server with npm run dev.'); }
 if (!persistence) $('#editor-status').textContent = 'Browser storage is unavailable. This visit works; export settings before closing.';

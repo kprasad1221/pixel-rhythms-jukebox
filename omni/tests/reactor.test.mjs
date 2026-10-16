@@ -80,16 +80,16 @@ test('accepted request can fail generation without reception or playback', async
  assert.ok(f.log.some(([stage])=>stage==='Request acceptance'));
  assert.ok(!f.commands.includes('play'));assert.equal(f.disconnects,1);
 });
-test('simulated completion distinguishes acceptance, generation, reception and capture', async t=>{
+test('live completion attaches the stream before play and disconnects without recording', async t=>{
  const f=fixture(t,'success');
- // Shorten only the offstage transport-drain wait for this simulation.
- const realSetTimeout=globalThis.setTimeout;
- t.mock.method(globalThis,'setTimeout',(fn,ms,...args)=>realSetTimeout(fn,ms>=1000&&ms<10000?0:ms,...args));
+ let attached=false;
+ f.session.onStream=stream=>{assert.equal(stream.getTracks().length,2);assert.ok(!f.commands.includes('play'));attached=true;};
+ globalThis.MediaRecorder=class { constructor(){throw new Error('Live preview must never construct a recorder');} };
  const take=await f.session.generate(f.pad,()=>{});
- assert.ok(take.blob.size>0);assert.equal(take.clipId,'test-clip');
+ assert.equal(take.source,'reactor-live');assert.equal(take.blob,undefined);assert.equal(take.clipId,'test-clip');assert.equal(attached,true);
  assert.equal(f.disconnects,1);assert.equal(f.session.reactor,null);
- assert.equal(f.session.timer !== null && !f.session.timer._destroyed, false);
- for(const stage of ['Local validation','Connection','Upload','Request acceptance','Generation','Reception','Capture'])assert.ok(f.log.some(([s])=>s===stage),stage);
+ assert.ok(!f.log.some(([stage])=>stage==='Capture'));
+ for(const stage of ['Local validation','Connection','Upload','Request acceptance','Generation','Reception','Live preview'])assert.ok(f.log.some(([s])=>s===stage),stage);
  assert.ok(!f.log.some(([stage])=>stage==='Playback'));
  const text=JSON.stringify(f.log);assert.ok(!text.includes('private-test-token'));assert.ok(!text.includes('Authored prompt'));assert.ok(!text.includes('privateUpload'));
 });
@@ -168,15 +168,12 @@ test('parallel attempt and repeated End cannot open or disconnect twice', async 
  assert.equal(f.disconnects,1);
 });
 
-for (const mode of ['capture-empty','capture-stop-throws']) {
- test(`${mode}: recorder failure still disconnects`, async t => {
-  const f=fixture(t,mode);
-  const realSetTimeout=globalThis.setTimeout;
-  t.mock.method(globalThis,'setTimeout',(fn,ms,...args)=>realSetTimeout(fn,ms>=1000&&ms<10000?0:ms,...args));
-  await assert.rejects(f.session.generate(f.pad,()=>{}), /No media bytes|recorder stop failure/);
-  assert.equal(f.disconnects,1);assert.equal(f.session.reactor,null);
- });
-}
+test('preview attachment error disconnects before sending play', async t => {
+ const f=fixture(t,'success');
+ f.session.onStream=()=>{throw new Error('Preview unavailable');};
+ await assert.rejects(f.session.generate(f.pad,()=>{}),/Preview unavailable/);
+ assert.equal(f.commands.includes('play'),false);assert.equal(f.disconnects,1);
+});
 
 test('late upload completion after timeout cannot terminate a newer session', async t => {
  const f=fixture(t,'upload-hangs',{attemptTimeoutMs:20,disconnectTimeoutMs:20});

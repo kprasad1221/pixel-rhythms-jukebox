@@ -96,3 +96,8 @@ textarea { width:100%; resize:vertical; line-height:1.6; }
 .generation-controls #live-note label { display:flex; align-items:center; gap:8px; margin:0; }
 
 #capture-test-preview { width:100%; max-height:220px; background:#123f50; margin-top:12px; border-radius:8px; }
+
+#live-preview-area { margin-top:16px; padding:12px; border:2px solid #387c91; border-radius:10px; background:#e6f5fa; }
+#live-preview { width:100%; max-height:420px; background:#123f50; border-radius:8px; }
+#live-preview-status[data-error=true] { color:#8a3016; background:#fff0df; padding:8px; }
+.recording-diagnostics { margin-top:16px; }

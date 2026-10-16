@@ -7,9 +7,9 @@
 </head>
 <body>
 <main>
-  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.6</span></header>
+  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.7</span></header>
   <div class="toolbar">
-    <label>Play mode <select id="play-mode"><option value="loops">Play loops</option><option value="generate">Generate variations</option></select></label>
+    <span>Ten pads · local loop playback</span>
     <button id="arrange" type="button">Arrange pads</button>
     <button id="end" type="button">End Reactor</button>
   </div>
@@ -36,7 +36,7 @@
     </div>
   </div>
   <footer><p id="status" role="status">Choose Arrange pads to add your clips and references.</p><span class="help">Pads 1–5 · Q–T</span></footer>
-  <p id="session-status" role="status">Reactor is off. Play loops uses no generation credits.</p>
+  <p id="session-status" role="status">Reactor is off. Local loop pads and free tests use no generation credits.</p>
 
   <details id="editor">
     <summary>Arrange the instrument <span id="pad-count"></span></summary>
@@ -58,16 +58,24 @@
         <label>Generated passage length <select id="pad-seconds"><option>5.875</option><option selected>8</option><option>10.125</option><option>12.25</option><option>14.375</option></select></label>
         <section class="generation-controls" aria-label="Selected pad generation">
           <p><strong id="generate-label">Generate selected pad</strong></p>
-          <p>Check inputs reads the image and audio locally, with no credits. Generate uploads these references and requests one new passage; it requires paid generation enabled below.</p>
+          <p>Generate unlocks after Show free live pattern verifies this video display. Generate and watch uploads the selected references and displays one live passage here. Recording is disabled in this step; no new pad clip or download is created.</p>
           <ul id="input-issues" aria-label="Inputs needing attention"></ul>
   <div id="live-note">
     <label><input id="allow-generation" type="checkbox"> Enable one paid generation attempt.</label>
-    <span>One request at a time. Tokens request a server-side 30-second session limit; the local attempt times out after 25 seconds. Capture completion triggers disconnect before local playback. The checkbox resets after each attempt. Server enforcement and the final charge are not yet verified.</span>
+    <span>One request at a time. Tokens request a server-side 30-second session limit; the local attempt times out after 25 seconds. The app disconnects when the live passage finishes or the attempt stops. The checkbox resets after each attempt. Server enforcement and the final charge are not yet verified.</span>
   </div>
-          <div class="actions"><button id="check-inputs" type="button">Check inputs (no credits)</button><button id="test-capture" type="button">Test capture through selected pad (no credits)</button><button id="generate-pad" type="button">Generate selected pad</button></div>
-          <p>The free test records a three-second local pattern and tone, then makes it a temporary LOCAL TEST take on the selected pad. It switches to Play loops and disables paid generation. Press that pad to test normal playback and fades; use Download test clip to test downloading. Original media assignments stay saved. Reload clears the temporary test. The small preview below is optional.</p>
-          <p id="take-status" role="status"></p>
-          <video id="capture-test-preview" controls muted playsinline hidden aria-label="Local browser capture test recording"></video>
+          <div class="actions"><button id="check-inputs" type="button">Check inputs (no credits)</button><button id="test-live" type="button">Show free live pattern</button><button id="generate-pad" type="button">Generate and watch one clip</button></div>
+          <div id="live-preview-area">
+            <p><strong>LIVE PREVIEW</strong> · starts muted; use the video controls for sound.</p>
+            <video id="live-preview" controls muted playsinline hidden aria-label="Live stream preview"></video>
+            <p id="live-preview-status" role="status">No live stream displayed yet. Show the free pattern first.</p>
+          </div>
+          <details class="recording-diagnostics"><summary>Earlier local recording test</summary>
+            <p>This separate free test records a synthetic pattern and tone for pad playback and download. It does not test incoming Reactor media.</p>
+            <button id="test-capture" type="button">Create free test clip for selected pad</button>
+            <p id="take-status" role="status"></p>
+            <video id="capture-test-preview" controls muted playsinline hidden aria-label="Local browser capture test recording"></video>
+          </details>
           <p id="attempt-status" role="status" tabindex="-1">No generation attempted this visit.</p>
         </section>
         <div class="actions"><button id="save-pad" type="button">Save pad</button><button id="audition" type="button">Play existing loop</button><button id="download-take" type="button" disabled>Save latest take</button></div>
@@ -75,11 +83,11 @@
     </div>
     <p id="editor-status" role="status">Names, prompts, and chosen media are saved in this browser on this computer. Keep the original files backed up.</p>
     <div class="actions"><button id="export" type="button">Export prompt settings</button><label class="import-label">Import prompt settings <input id="import" type="file" accept="application/json"></label></div>
-    <p class="editor-footnote">Prompt exports list filenames but do not include media. Temporary takes stay available for this visit; download them before closing. This is a local prototype. Live timing, recording boundaries, and loop seams still need a paid test.</p>
+    <p class="editor-footnote">Prompt exports list filenames but do not include media. Temporary takes stay available for this visit; download them before closing. Generate and watch is a live-video check only. It does not record or create a downloadable pad take.</p>
   </details>
   <section id="activity" aria-labelledby="activity-title">
     <div class="actions"><h2 id="activity-title">Activity log</h2><button id="copy-log" type="button">Copy log</button></div>
-    <p>Timestamped events for this visit, newest first. “Accepted” does not mean generated; captured media still needs local playback. No keys, tokens, reference URLs, or prompt bodies are logged.</p>
+    <p>Timestamped events for this visit, newest first. “Accepted” does not mean generated; decoded frames and displayed frames are logged separately. No keys, tokens, reference URLs, or prompt bodies are logged.</p>
     <ol id="activity-log" role="log" aria-live="polite" aria-relevant="additions"></ol>
     <p id="copy-status" role="status"></p>
   </section>
