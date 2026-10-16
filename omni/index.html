@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pixel Rhythms — Omni Playground</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1</span></header>
+  <div class="toolbar">
+    <label>Play mode <select id="play-mode"><option value="loops">Play loops</option><option value="generate">Generate variations</option></select></label>
+    <button id="arrange" type="button">Arrange pads</button>
+    <button id="end" type="button">End Reactor</button>
+  </div>
+  <div class="screen-row">
+    <div class="stage inset">
+      <div class="empty" id="empty"><strong>A world at your fingertips.</strong><span>Arrange your ten pads, then play.</span></div>
+      <video id="output" loop playsinline preload="auto" aria-label="Audiovisual loop A"></video>
+      <video id="incoming" loop playsinline preload="auto" aria-label="Audiovisual loop B"></video>
+      <div id="working" role="status" hidden><span class="orb"></span><span id="working-label"></span></div>
+    </div>
+    <aside class="side" aria-label="Live audio feedback">
+      <div class="meters inset"><canvas id="meters" aria-label="Left and right audio peak levels"></canvas></div>
+      <div class="scope inset"><canvas id="scope" aria-label="Live audio waveform"></canvas></div>
+    </aside>
+  </div>
+  <div class="ribbon inset"><canvas id="ribbon" aria-label="Recent audio amplitude history"></canvas></div>
+  <div class="deck">
+    <nav aria-label="Ten audiovisual pads"><div id="buttons" class="clip-grid"></div></nav>
+    <div class="transport">
+      <label class="volume-label" for="volume">VOLUME</label>
+      <div class="fader"><input id="volume" aria-label="Master volume" type="range" min="0" max="1" step="0.01" value="0.8"><span class="ticks" aria-hidden="true"></span></div>
+      <output id="volume-value" for="volume">80%</output>
+      <div class="transport-bottom"><button id="pause" disabled aria-label="Pause or resume playback">Pause</button><label class="fade"><small>FADE</small><select id="fade-seconds" aria-label="Crossfade duration"><option value="0.5">0.5 s</option><option value="1.5">1.5 s</option><option value="3">3 s</option></select></label></div>
+    </div>
+  </div>
+  <footer><p id="status" role="status">Choose Arrange pads to add your clips and references.</p><span class="help">Pads 1–5 · Q–T</span></footer>
+  <p id="session-status" role="status">Reactor is off. Play loops uses no generation credits.</p>
+  <div id="live-note" hidden>
+    <label><input id="allow-generation" type="checkbox"> Enable paid generation for this visit.</label>
+    <span>One request at a time. Sessions end after five minutes; this is not a spending cap. A new passage is received before it fades in.</span>
+  </div>
+  <details id="editor">
+    <summary>Arrange the instrument <span id="pad-count"></span></summary>
+    <div class="editor-grid">
+      <div>
+        <label>Pad <select id="edit-pad"></select></label>
+        <label>Name <input id="pad-name" maxlength="60"></label>
+        <label>Group <input id="pad-group" maxlength="40"></label>
+        <label>Existing loop <input id="pad-clip" type="file" accept="video/mp4,video/webm,video/quicktime"></label>
+        <small id="clip-name"></small>
+        <label>Krea image <input id="pad-image" type="file" accept="image/png,image/jpeg,image/webp"></label>
+        <small id="image-name"></small>
+        <label>Daydream reference · 2–15 seconds <input id="pad-audio" type="file" accept="audio/*"></label>
+        <small id="audio-name"></small>
+      </div>
+      <div>
+        <img id="image-preview" alt="Selected pad image" hidden>
+        <label>Direction for this variation <textarea id="pad-prompt" rows="7" placeholder="Your visual and musical direction. Picture 1 and Audio 1 are attached automatically."></textarea></label>
+        <label>Generated passage length <select id="pad-seconds"><option>5.875</option><option selected>8</option><option>10.125</option><option>12.25</option><option>14.375</option></select></label>
+        <div class="actions"><button id="save-pad" type="button">Save pad</button><button id="audition" type="button">Play existing loop</button><button id="download-take" type="button" disabled>Save latest take</button></div>
+      </div>
+    </div>
+    <p id="editor-status" role="status">Names, prompts, and chosen media are saved in this browser on this computer. Keep the original files backed up.</p>
+    <div class="actions"><button id="export" type="button">Export prompt settings</button><label class="import-label">Import prompt settings <input id="import" type="file" accept="application/json"></label></div>
+    <p class="editor-footnote">Prompt exports list filenames but do not include media. Generated takes stay available for this visit; use Save latest take before closing. This is a local prototype. Live timing, recording boundaries, and loop seams still need a paid test.</p>
+  </details>
+</main>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

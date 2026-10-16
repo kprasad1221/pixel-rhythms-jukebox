@@ -2,6 +2,8 @@
 
 A tactile browser instrument for playing visual music. Work in progress.
 
+**Omni prototype:** this branch adds a separate [ten-pad Reactor experiment](omni/README.md) in `omni/`. The original single-file Jukebox below is unchanged. Start with the prototype's local setup and Play loops mode.
+
 Tap a pad to switch audiovisual loops. The prototype combines a glass MIDI-inspired layout, a 0.5-second picture-and-sound crossfade, a vertical volume fader, and audio-driven meters and waveforms.
 
 ## Run locally
