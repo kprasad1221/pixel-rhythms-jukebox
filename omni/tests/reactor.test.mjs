@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { Reactor } from '@reactor-team/js-sdk';
 import { OmniSession } from '../src/reactor.js';
 import { defaultPads } from '../src/pads.js';
 import { safeLogText } from '../src/activity.js';
@@ -20,10 +21,11 @@ function fixture(t, mode = 'upload-fails') {
   });
   mock('MediaStream', class {});
   class FakeReactor {
-    handlers = {}; status = 'disconnected';
+    handlers = {}; #status = 'disconnected';
+    getStatus(){return this.#status;}
     on(name, handler){this.handlers[name]=handler;}
-    async connect(){this.status='ready';this.handlers.statusChanged('ready');}
-    async disconnect(){disconnects++;this.status='disconnected';this.handlers.statusChanged('disconnected');}
+    async connect(){this.#status='ready';this.handlers.statusChanged('ready');}
+    async disconnect(){disconnects++;this.#status='disconnected';this.handlers.statusChanged('disconnected');}
     async uploadFile(file){uploads.push(file);if(mode==='upload-fails')throw new Error('Simulated upload unavailable');return {privateUpload:'never log this'};}
     async sendCommand(name){
       commands.push(name);
@@ -91,4 +93,23 @@ test('simulated completion distinguishes acceptance, generation, reception and c
 test('log redacts token-like strings and URLs from error descriptions',()=>{
  const text=safeLogText('jwt=secret https://example.com/upload?token=secret eyJabc.abcdef.abcdef');
  assert.ok(!text.includes('secret'));assert.ok(!text.includes('eyJabc'));assert.ok(!text.includes('example.com'));
+});
+
+// Assert against the real installed class as well as the fake's private state.
+test('installed SDK exposes getStatus(), not a public status property', () => {
+ const reactor = new Reactor({ modelName: 'reactor/fast-h3-omni' });
+ assert.equal(typeof reactor.getStatus, 'function');
+ assert.equal(reactor.getStatus(), 'disconnected');
+ assert.equal(reactor.status, undefined);
+});
+test('ready session is reused through the SDK getStatus interface', async t => {
+ const f = fixture(t);
+ await f.session.connect();
+ assert.equal(f.tokenCalls, 1);
+ assert.equal(f.session.reactor.getStatus(), 'ready');
+ assert.equal(f.session.reactor.status, undefined);
+ await f.session.connect();
+ assert.equal(f.tokenCalls, 1);
+ assert.deepEqual(f.commands, ['set_autoplay']);
+ assert.ok(f.log.some(([stage, text]) => stage === 'Connection' && text.includes('connect call completed')));
 });

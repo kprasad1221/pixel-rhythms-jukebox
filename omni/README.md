@@ -1,6 +1,24 @@
-# Pixel Rhythms · Omni prototype 0.1.1
+# Pixel Rhythms · Omni prototype 0.1.2
 
 A ten-pad extension of KP's existing glass Jukebox. Same two playback decks, crossfades, master volume, waveform and stereo meters. Each pad can hold an existing loop, one Krea image, one Daydream reference, and an authored prompt. Musical variation in the generated soundtrack is intentional.
+
+## 0.1.2: fix the stall after SDK ready
+
+KP's first prototype log confirmed scoped token exchange, both output tracks and SDK `ready`, but no upload or enqueue. The readiness gate incorrectly read `reactor.status`; the installed SDK 3.1.0 exposes `reactor.getStatus()` instead. An undefined property kept the application in its waiting loop even after the ready event. The offline fake had repeated that incorrect property, masking the integration bug.
+
+The gate and ready-session reuse now call `getStatus()`. The fake has private state and the same method as the SDK, and a regression check inspects the real installed class without connecting. Two added log entries distinguish completion of the SDK connect call from waiting for the autoplay command reply.
+
+All **19** automated checks and the build pass. This is a correction to the readiness gate, not evidence that live upload, generation or generated-media capture succeeds. No paid retest was run during this fix.
+
+For the new Windows Git checkout, use **End Reactor**, stop the server with **Ctrl+C**, then:
+
+```powershell
+cd D:\Projects\reactor-jukebox-git\omni
+git pull --ff-only
+npm.cmd run dev
+```
+
+Refresh the same local address and look for **0.1.2**. The private environment file and browser storage are unchanged. Agree a paid-test limit before retrying generation.
 
 ## Recovery update: make one attempt observable
 
@@ -18,7 +36,7 @@ This update keeps the ten-pad instrument and its existing IndexedDB database (`p
    npm.cmd run dev
    ```
 
-5. Open **http://127.0.0.1:8093** in the same browser/profile as before, then refresh. The heading should say **0.1.1**. Keep this exact host and port to retain the same browser assignments.
+5. Open **http://127.0.0.1:8093** in the same browser/profile as before, then refresh. The heading should say **0.1.2**. Keep this exact host and port to retain the same browser assignments.
 
 For a Git checkout with no uncommitted edits, pulling `codex/omni-jukebox-prototype` is an alternative to copying source files. Do not reset or clean your local checkout.
 

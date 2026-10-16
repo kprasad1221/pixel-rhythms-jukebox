@@ -40,7 +40,7 @@ export class OmniSession {
     await validateMedia(pad);
   }
   async connect() {
-    if (this.reactor?.status === 'ready') { this.log('Connection', 'Reusing ready Reactor session.'); return; }
+    if (this.reactor?.getStatus() === 'ready') { this.log('Connection', 'Reusing ready Reactor session.'); return; }
     const epoch = this.epoch;
     this.phase = 'Connection';
     this.log(this.phase, 'Requesting scoped token from the local server.');
@@ -74,12 +74,14 @@ export class OmniSession {
     // disconnects the SDK; stopping local playback alone does not do that.
     this.timer = setTimeout(async () => { const ended = await this.end(); this.onStatus(ended ? 'Five-minute Reactor session ended. Local loops remain available.' : 'Disconnect could not be confirmed. Check Reactor session state.'); }, 300000);
     await reactor.connect(token.jwt);
+    this.log('Connection', `SDK connect call completed; current status: ${reactor.getStatus()}.`);
     const deadline = Date.now() + 180000;
-    while (reactor.status !== 'ready') {
-      if (epoch !== this.epoch || Date.now() > deadline || reactor.status === 'disconnected') throw new Error('Reactor did not become ready.');
+    while (reactor.getStatus() !== 'ready') {
+      if (epoch !== this.epoch || Date.now() > deadline || reactor.getStatus() === 'disconnected') throw new Error('Reactor did not become ready.');
       await wait(100);
     }
     if (epoch !== this.epoch) throw new Error('Session ended.');
+    this.log('Connection', 'Confirming autoplay is disabled; awaiting set_autoplay reply.');
     await this.command('set_autoplay', { enabled: false });
     this.log('Connection', 'Session ready; autoplay disabled.');
   }
