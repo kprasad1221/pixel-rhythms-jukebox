@@ -9,7 +9,7 @@ function fixture(t, mode = 'upload-fails', limits = {}) {
   const saved = new Map();
   function mock(name, value) { saved.set(name, Object.getOwnPropertyDescriptor(globalThis, name)); Object.defineProperty(globalThis, name, { value, configurable:true, writable:true }); }
   t.after(() => { for (const [name, descriptor] of saved) descriptor ? Object.defineProperty(globalThis, name, descriptor) : delete globalThis[name]; });
-  const log = [], commands = [], uploads = []; let tokenCalls = 0, disconnects = 0, releaseUpload;
+  const log = [], commands = [], uploads = []; let tokenCalls = 0, disconnects = 0, releaseUpload; const connectionOptions=[];
   mock('fetch', async () => { tokenCalls++; return {ok:true,json:async()=>({jwt:'private-test-token'})}; });
   mock('createImageBitmap', async () => ({width:1344,height:768,close(){}}));
   mock('Audio', class { set src(value) { queueMicrotask(()=>this.onloadedmetadata?.()); } duration=3; removeAttribute(){} load(){} });
@@ -24,7 +24,7 @@ function fixture(t, mode = 'upload-fails', limits = {}) {
     handlers = {}; #status = 'disconnected';
     getStatus(){return this.#status;}
     on(name, handler){this.handlers[name]=handler;}
-    async connect(token,options){assert.equal(options.maxAttempts,1);if(mode==='connect-hangs')return new Promise(()=>{});this.#status='ready';this.handlers.statusChanged('ready');}
+    async connect(token,options){connectionOptions.push(options);if(options?.maxAttempts===1)throw new Error('timed out: no SDP answer after 1 polls');if(mode==='pending-handshake'){await Promise.resolve();await Promise.resolve();}if(mode==='connect-hangs')return new Promise(()=>{});this.#status='ready';this.handlers.statusChanged('ready');}
     async disconnect(){disconnects++;if(mode==='disconnect-hangs')return new Promise(()=>{});if(mode==='disconnect-fails')throw new Error('Simulated disconnect refusal');this.#status='disconnected';this.handlers.statusChanged('disconnected');}
     async uploadFile(file){uploads.push(file);if(mode==='upload-hangs')return new Promise(resolve=>{releaseUpload=resolve;});if(mode==='upload-fails')throw new Error('Simulated upload unavailable');return {privateUpload:'never log this'};}
     async sendCommand(name){
@@ -51,7 +51,7 @@ function fixture(t, mode = 'upload-fails', limits = {}) {
   const session=new OmniSession(()=>{},(...args)=>log.push(args),FakeReactor,limits);
   t.after(()=>session.end());
   const pad={...defaultPads()[0],prompt:'Authored prompt not for logs',image:new Blob(['image'],{type:'image/png'}),audio:new Blob(['audio'],{type:'audio/wav'})};
-  return {session,pad,log,commands,uploads,releaseUpload:()=>releaseUpload?.({}),get tokenCalls(){return tokenCalls;},get disconnects(){return disconnects;}};
+  return {session,pad,log,commands,uploads,connectionOptions,releaseUpload:()=>releaseUpload?.({}),get tokenCalls(){return tokenCalls;},get disconnects(){return disconnects;}};
 }
 
 test('missing audio blocks before token, SDK connection, upload or request', async t=>{
@@ -188,4 +188,13 @@ test('late upload completion after timeout cannot terminate a newer session', as
  await new Promise(resolve=>setTimeout(resolve,5));
  assert.equal(f.session.reactor,next);assert.equal(f.disconnects,1);
  assert.equal(f.tokenCalls,2);assert.equal(f.commands.includes('enqueue'),false);
+});
+
+test('connection preserves normal SDP polling without creating multiple sessions', async t => {
+ const f=fixture(t,'pending-handshake');
+ await f.session.connect();
+ assert.deepEqual(f.connectionOptions,[undefined]);
+ assert.equal(f.tokenCalls,1);assert.equal(f.session.reactor.getStatus(),'ready');
+ assert.deepEqual(f.commands,['set_autoplay']);
+ assert.equal(f.commands.includes('enqueue'),false);
 });

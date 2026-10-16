@@ -75,7 +75,9 @@ export class OmniSession {
       if (status === 'waiting') this.onStatus('Waiting for Reactor… your current loop keeps playing.');
       if (status === 'disconnected') this.events.close('Reactor disconnected. Your local loops are still available.');
     });
-    await reactor.connect(token.jwt, { maxAttempts: 1 });
+    // maxAttempts counts SDP-answer polls, not generation requests.
+    // Preserve the SDK default; our overall deadline and server token bound time.
+    await reactor.connect(token.jwt);
     this.log('Connection', `SDK connect call completed; current status: ${reactor.getStatus()}.`);
     const deadline = Date.now() + 180000;
     while (reactor.getStatus() !== 'ready') {

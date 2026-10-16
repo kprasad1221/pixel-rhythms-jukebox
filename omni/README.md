@@ -1,6 +1,10 @@
-# Pixel Rhythms · Omni prototype 0.1.5
+# Pixel Rhythms · Omni prototype 0.1.6
 
 A ten-pad extension of KP's existing glass Jukebox. Same two playback decks, crossfades, master volume, waveform and stereo meters. Each pad can hold an existing loop, one Krea image, one Daydream reference, and an authored prompt. Musical variation in the generated soundtrack is intentional.
+
+## 0.1.6: restore connection handshake polling
+
+The first 0.1.5 attempt stopped at `waiting` with `timed out: no SDP answer after 1 polls`, followed by completed SDK disconnect. No uploads or enqueue were logged. The added `maxAttempts: 1` connection option was wrong: the official [Reactor class reference](https://docs.reactor.inc/sdk-reference/reactor-class) defines it as maximum SDP polling attempts (default six), not generation retries. Removing the override restores normal handshake polling within the same session. The 25-second local attempt deadline, 30-second token session limit, automatic cleanup and single enqueue remain unchanged. A regression test models a pending handshake and verifies one token request, no single-poll override, and no generation command during connect. No live retest or paid request was performed for this correction. Update to 0.1.6 before considering a separately agreed attempt; check account usage for the failed attempt rather than assuming its charge.
 
 ## 0.1.5: bounded sessions and the free pattern through a real pad
 
@@ -10,7 +14,7 @@ Spending controls:
 
 - The server requests `max_sessions: 1` and `max_session_duration_seconds: 30` on every model-scoped token. Reactor documents server termination after that duration, independent of browser cleanup. Token lifetime alone does not impose a session limit.
 - One attempt has a 25-second local deadline, including input checks and connection time. Stalled connection, upload, commands, generation, reception or capture trigger non-recoverable SDK disconnect. Capturing a clip successfully also disconnects before local playback. Disconnect confirmation gets five seconds; if it fails or hangs, this page blocks further attempts and asks for an account check.
-- No automatic generation retries; SDK connect uses `maxAttempts: 1`. Duplicate attempts are blocked. The paid checkbox resets when an attempt begins, and successful generation returns the pads to Play loops.
+- No automatic generation retries. SDK connection polling uses its normal default; this does not enqueue additional generations. Duplicate attempts are blocked. The paid checkbox resets when an attempt begins, and successful generation returns the pads to Play loops.
 - At the published $0.0125/sec rate checked October 15, 30 billable seconds would be $0.375. This is a rate-times-duration calculation, **not a verified account charge or a platform dollar cap**. Server enforcement and exact charges remain untested. The short session may end before a generation/capture completes. No future paid test is authorized by this update.
 
 Free workflow after updating:
