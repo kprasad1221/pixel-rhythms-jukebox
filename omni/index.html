@@ -7,7 +7,7 @@
 </head>
 <body>
 <main>
-  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.3</span></header>
+  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.5</span></header>
   <div class="toolbar">
     <label>Play mode <select id="play-mode"><option value="loops">Play loops</option><option value="generate">Generate variations</option></select></label>
     <button id="arrange" type="button">Arrange pads</button>
@@ -61,11 +61,12 @@
           <p>Check inputs reads the image and audio locally, with no credits. Generate uploads these references and requests one new passage; it requires paid generation enabled below.</p>
           <ul id="input-issues" aria-label="Inputs needing attention"></ul>
   <div id="live-note">
-    <label><input id="allow-generation" type="checkbox"> Enable paid generation for this visit.</label>
-    <span>One request at a time. Sessions end after five minutes; this is not a spending cap. A new passage is received before it fades in.</span>
+    <label><input id="allow-generation" type="checkbox"> Enable one paid generation attempt.</label>
+    <span>One request at a time. Tokens request a server-side 30-second session limit; the local attempt times out after 25 seconds. Capture completion triggers disconnect before local playback. The checkbox resets after each attempt. Server enforcement and the final charge are not yet verified.</span>
   </div>
-          <div class="actions"><button id="check-inputs" type="button">Check inputs (no credits)</button><button id="test-capture" type="button">Test browser capture (no credits)</button><button id="generate-pad" type="button">Generate selected pad</button></div>
-          <p>The capture test records a local moving pattern and tone for three seconds, without using your camera, microphone or Reactor. Its recording appears here, muted; press Play to inspect it.</p>
+          <div class="actions"><button id="check-inputs" type="button">Check inputs (no credits)</button><button id="test-capture" type="button">Test capture through selected pad (no credits)</button><button id="generate-pad" type="button">Generate selected pad</button></div>
+          <p>The free test records a three-second local pattern and tone, then makes it a temporary LOCAL TEST take on the selected pad. It switches to Play loops and disables paid generation. Press that pad to test normal playback and fades; use Download test clip to test downloading. Original media assignments stay saved. Reload clears the temporary test. The small preview below is optional.</p>
+          <p id="take-status" role="status"></p>
           <video id="capture-test-preview" controls muted playsinline hidden aria-label="Local browser capture test recording"></video>
           <p id="attempt-status" role="status" tabindex="-1">No generation attempted this visit.</p>
         </section>
@@ -74,7 +75,7 @@
     </div>
     <p id="editor-status" role="status">Names, prompts, and chosen media are saved in this browser on this computer. Keep the original files backed up.</p>
     <div class="actions"><button id="export" type="button">Export prompt settings</button><label class="import-label">Import prompt settings <input id="import" type="file" accept="application/json"></label></div>
-    <p class="editor-footnote">Prompt exports list filenames but do not include media. Generated takes stay available for this visit; use Save latest take before closing. This is a local prototype. Live timing, recording boundaries, and loop seams still need a paid test.</p>
+    <p class="editor-footnote">Prompt exports list filenames but do not include media. Temporary takes stay available for this visit; download them before closing. This is a local prototype. Live timing, recording boundaries, and loop seams still need a paid test.</p>
   </details>
   <section id="activity" aria-labelledby="activity-title">
     <div class="actions"><h2 id="activity-title">Activity log</h2><button id="copy-log" type="button">Copy log</button></div>

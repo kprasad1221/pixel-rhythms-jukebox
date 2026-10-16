@@ -5,11 +5,11 @@ import { OmniSession } from '../src/reactor.js';
 import { defaultPads } from '../src/pads.js';
 import { safeLogText } from '../src/activity.js';
 
-function fixture(t, mode = 'upload-fails') {
+function fixture(t, mode = 'upload-fails', limits = {}) {
   const saved = new Map();
   function mock(name, value) { saved.set(name, Object.getOwnPropertyDescriptor(globalThis, name)); Object.defineProperty(globalThis, name, { value, configurable:true, writable:true }); }
   t.after(() => { for (const [name, descriptor] of saved) descriptor ? Object.defineProperty(globalThis, name, descriptor) : delete globalThis[name]; });
-  const log = [], commands = [], uploads = []; let tokenCalls = 0, disconnects = 0;
+  const log = [], commands = [], uploads = []; let tokenCalls = 0, disconnects = 0, releaseUpload;
   mock('fetch', async () => { tokenCalls++; return {ok:true,json:async()=>({jwt:'private-test-token'})}; });
   mock('createImageBitmap', async () => ({width:1344,height:768,close(){}}));
   mock('Audio', class { set src(value) { queueMicrotask(()=>this.onloadedmetadata?.()); } duration=3; removeAttribute(){} load(){} });
@@ -17,25 +17,26 @@ function fixture(t, mode = 'upload-fails') {
     static isTypeSupported(){return true;}
     constructor(_, options){this.mimeType=options.mimeType;this.state='inactive';}
     start(){this.state='recording';}
-    stop(){this.state='inactive';this.ondataavailable?.({data:new Blob(['simulated media'])});this.onstop?.();}
+    stop(){if(mode==='capture-stop-throws')throw new Error('Simulated recorder stop failure');this.state='inactive';this.ondataavailable?.({data:new Blob(mode==='capture-empty'?[]:['simulated media'])});this.onstop?.();}
   });
   mock('MediaStream', class { constructor(tracks){this.tracks=tracks;} getTracks(){return this.tracks;} });
   class FakeReactor {
     handlers = {}; #status = 'disconnected';
     getStatus(){return this.#status;}
     on(name, handler){this.handlers[name]=handler;}
-    async connect(){this.#status='ready';this.handlers.statusChanged('ready');}
-    async disconnect(){disconnects++;this.#status='disconnected';this.handlers.statusChanged('disconnected');}
-    async uploadFile(file){uploads.push(file);if(mode==='upload-fails')throw new Error('Simulated upload unavailable');return {privateUpload:'never log this'};}
+    async connect(token,options){assert.equal(options.maxAttempts,1);if(mode==='connect-hangs')return new Promise(()=>{});this.#status='ready';this.handlers.statusChanged('ready');}
+    async disconnect(){disconnects++;if(mode==='disconnect-hangs')return new Promise(()=>{});if(mode==='disconnect-fails')throw new Error('Simulated disconnect refusal');this.#status='disconnected';this.handlers.statusChanged('disconnected');}
+    async uploadFile(file){uploads.push(file);if(mode==='upload-hangs')return new Promise(resolve=>{releaseUpload=resolve;});if(mode==='upload-fails')throw new Error('Simulated upload unavailable');return {privateUpload:'never log this'};}
     async sendCommand(name){
       commands.push(name);
+      if(mode===`${name}-hangs`)return new Promise(()=>{});
       if(name==='set_autoplay')return {type:'autoplay_accepted'};
       if(name==='enqueue'){
         if(mode==='refused') {this.handlers.error({operation:'sendCommand',code:'invalid_audio',message:'Simulated audio refusal'});return undefined;}
         if(mode==='undefined')return undefined;
         const clip={clip_id:'test-clip'};
         if(mode==='generation-fails')this.handlers.message({type:'clip_failed',data:{clip,reason:'Simulated generation failure'}});
-        else {
+        else if(mode!=='generation-hangs') {
           this.handlers.message({type:'clip_generated',data:{clip}});
           this.handlers.trackReceived('main_video',{kind:'video'});this.handlers.trackReceived('main_audio',{kind:'audio'});
         }
@@ -47,10 +48,10 @@ function fixture(t, mode = 'upload-fails') {
       }
     }
   }
-  const session=new OmniSession(()=>{},(...args)=>log.push(args),FakeReactor);
+  const session=new OmniSession(()=>{},(...args)=>log.push(args),FakeReactor,limits);
   t.after(()=>session.end());
   const pad={...defaultPads()[0],prompt:'Authored prompt not for logs',image:new Blob(['image'],{type:'image/png'}),audio:new Blob(['audio'],{type:'audio/wav'})};
-  return {session,pad,log,commands,uploads,get tokenCalls(){return tokenCalls;},get disconnects(){return disconnects;}};
+  return {session,pad,log,commands,uploads,releaseUpload:()=>releaseUpload?.({}),get tokenCalls(){return tokenCalls;},get disconnects(){return disconnects;}};
 }
 
 test('missing audio blocks before token, SDK connection, upload or request', async t=>{
@@ -86,6 +87,8 @@ test('simulated completion distinguishes acceptance, generation, reception and c
  t.mock.method(globalThis,'setTimeout',(fn,ms,...args)=>realSetTimeout(fn,ms>=1000&&ms<10000?0:ms,...args));
  const take=await f.session.generate(f.pad,()=>{});
  assert.ok(take.blob.size>0);assert.equal(take.clipId,'test-clip');
+ assert.equal(f.disconnects,1);assert.equal(f.session.reactor,null);
+ assert.equal(f.session.timer !== null && !f.session.timer._destroyed, false);
  for(const stage of ['Local validation','Connection','Upload','Request acceptance','Generation','Reception','Capture'])assert.ok(f.log.some(([s])=>s===stage),stage);
  assert.ok(!f.log.some(([stage])=>stage==='Playback'));
  const text=JSON.stringify(f.log);assert.ok(!text.includes('private-test-token'));assert.ok(!text.includes('Authored prompt'));assert.ok(!text.includes('privateUpload'));
@@ -127,4 +130,62 @@ test('incoming diagnostics select numeric inbound media counts without logging r
  assert.ok(text.includes('framesDecoded=24'));assert.ok(text.includes('totalSamplesReceived=48000'));
  assert.ok(!text.includes('never log'));assert.ok(!text.includes('999999'));
  f.session.reactor=null;
+});
+
+test('unconfirmed termination blocks another token request', async t => {
+ const f=fixture(t); f.session.disconnectUnconfirmed=true;
+ await assert.rejects(f.session.connect(), /termination is unconfirmed/);
+ assert.equal(f.tokenCalls,0);
+});
+
+for (const mode of ['connect-hangs','upload-hangs','set_autoplay-hangs','enqueue-hangs','generation-hangs','play-hangs']) {
+ test(`${mode}: deadline disconnects without retry or a second enqueue`, async t => {
+  const f=fixture(t,mode,{attemptTimeoutMs:20,disconnectTimeoutMs:20});
+  await assert.rejects(f.session.generate(f.pad,()=>{}), /time limit reached/);
+  assert.equal(f.disconnects,1); assert.equal(f.tokenCalls,1);
+  assert.ok(f.commands.filter(name=>name==='enqueue').length<=1);
+  assert.equal(f.session.reactor,null); assert.equal(f.session.inFlight,false);
+ });
+}
+for (const mode of ['disconnect-fails','disconnect-hangs']) {
+ test(`${mode}: uncertainty blocks another paid attempt`, async t => {
+  const f=fixture(t,mode,{disconnectTimeoutMs:10});
+  await f.session.connect();
+  assert.equal(await f.session.end(),false);
+  assert.equal(f.session.disconnectUnconfirmed,true);
+  await assert.rejects(f.session.generate(f.pad,()=>{}),/termination is unconfirmed/);
+  assert.equal(f.tokenCalls,1); assert.equal(f.disconnects,1);
+ });
+}
+test('parallel attempt and repeated End cannot open or disconnect twice', async t => {
+ const f=fixture(t,'upload-hangs',{attemptTimeoutMs:20,disconnectTimeoutMs:20});
+ const first=f.session.generate(f.pad,()=>{});
+ const rejected=assert.rejects(first,/time limit reached/);
+ await assert.rejects(f.session.generate(f.pad,()=>{}),/already running/);
+ await rejected;
+ assert.equal(f.tokenCalls,1); assert.equal(f.disconnects,1);
+ assert.deepEqual(await Promise.all([f.session.end(),f.session.end()]),[true,true]);
+ assert.equal(f.disconnects,1);
+});
+
+for (const mode of ['capture-empty','capture-stop-throws']) {
+ test(`${mode}: recorder failure still disconnects`, async t => {
+  const f=fixture(t,mode);
+  const realSetTimeout=globalThis.setTimeout;
+  t.mock.method(globalThis,'setTimeout',(fn,ms,...args)=>realSetTimeout(fn,ms>=1000&&ms<10000?0:ms,...args));
+  await assert.rejects(f.session.generate(f.pad,()=>{}), /No media bytes|recorder stop failure/);
+  assert.equal(f.disconnects,1);assert.equal(f.session.reactor,null);
+ });
+}
+
+test('late upload completion after timeout cannot terminate a newer session', async t => {
+ const f=fixture(t,'upload-hangs',{attemptTimeoutMs:20,disconnectTimeoutMs:20});
+ await assert.rejects(f.session.generate(f.pad,()=>{}),/time limit reached/);
+ assert.equal(f.disconnects,1);
+ await f.session.connect();
+ const next=f.session.reactor;
+ f.releaseUpload();
+ await new Promise(resolve=>setTimeout(resolve,5));
+ assert.equal(f.session.reactor,next);assert.equal(f.disconnects,1);
+ assert.equal(f.tokenCalls,2);assert.equal(f.commands.includes('enqueue'),false);
 });

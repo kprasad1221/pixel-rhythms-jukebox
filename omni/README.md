@@ -1,6 +1,41 @@
-# Pixel Rhythms · Omni prototype 0.1.3
+# Pixel Rhythms · Omni prototype 0.1.5
 
 A ten-pad extension of KP's existing glass Jukebox. Same two playback decks, crossfades, master volume, waveform and stereo meters. Each pad can hold an existing loop, one Krea image, one Daydream reference, and an authored prompt. Musical variation in the generated soundtrack is intentional.
+
+## 0.1.5: bounded sessions and the free pattern through a real pad
+
+Reactor bills GPU session time, including idle time after ready, rather than output clip duration. A request for a 5.875-second passage is not a cost limit. The previous stalled session lasted 2m41s. No additional paid run was made for this update.
+
+Spending controls:
+
+- The server requests `max_sessions: 1` and `max_session_duration_seconds: 30` on every model-scoped token. Reactor documents server termination after that duration, independent of browser cleanup. Token lifetime alone does not impose a session limit.
+- One attempt has a 25-second local deadline, including input checks and connection time. Stalled connection, upload, commands, generation, reception or capture trigger non-recoverable SDK disconnect. Capturing a clip successfully also disconnects before local playback. Disconnect confirmation gets five seconds; if it fails or hangs, this page blocks further attempts and asks for an account check.
+- No automatic generation retries; SDK connect uses `maxAttempts: 1`. Duplicate attempts are blocked. The paid checkbox resets when an attempt begins, and successful generation returns the pads to Play loops.
+- At the published $0.0125/sec rate checked October 15, 30 billable seconds would be $0.375. This is a rate-times-duration calculation, **not a verified account charge or a platform dollar cap**. Server enforcement and exact charges remain untested. The short session may end before a generation/capture completes. No future paid test is authorized by this update.
+
+Free workflow after updating:
+
+1. Open Arrange pads and select Pad 1 (or another pad without a generated take).
+2. Click **Create free test clip for Pad 1**. It records three seconds locally, disables paid generation, switches to Play loops, and labels the pad **LOCAL TEST**.
+3. Press Pad 1 in the ten-pad grid. The main screen and normal audio/crossfade path play the test. The small preview is optional.
+4. With Pad 1 selected in the editor, click **Download Pad 1 test clip**. It requests a video and a JSON record identifying this as a synthetic test, not a Reactor generation. The browser may ask permission for multiple downloads. Check the downloaded video separately.
+5. Reload clears the temporary take; the original assigned loop and prompts remain saved. A test never replaces an existing generated take; choose a different pad if one exists.
+
+**36 offline checks pass**, along with the build and the separate Chromium pad/download check. Offline checks cover hangs at connection/upload/autoplay/enqueue/generation/play, duplicate attempts, disconnect failures/timeouts, zero-byte capture, and recorder-stop exceptions. Token-route tests assert that the server-side duration limit is included. The Chromium browser check exercises actual recording, pad playback, two-deck crossfades, both downloads, replaying downloaded bytes, and original assignment persistence after reload. These verify local behavior, not live Reactor reception or server termination.
+
+Update with **End Reactor**, Ctrl+C, then:
+
+```powershell
+cd D:\Projects\reactor-jukebox-git\omni
+git pull --ff-only
+npm.cmd run dev
+```
+
+Refresh the same local address and look for **0.1.5**. No dependencies changed. Keep paid generation unchecked for the free workflow. `.env.local` and the browser database schema are unchanged.
+
+Developer verification: `npm test` and `npm run build`. Optional browser check: install Playwright separately (`npm install --no-save playwright`, `npx playwright install chromium`), then `npm run test:browser`. A preinstalled Playwright module can be selected with `PLAYWRIGHT_MODULE_PATH` and a browser executable with `CHROMIUM_PATH`. The browser check launches its own server with an empty API key, aborts external HTTPS requests, and asserts zero token requests. It requires no authored media fixtures.
+
+Sources: [Reactor billing](https://docs.reactor.inc/resources/billing), [token constraints](https://docs.reactor.inc/authentication), [server session-duration enforcement](https://docs.reactor.inc/resources/rate-limits), installed SDK 3.1.0 declarations/source. The older sections below describe previous versions and are retained as history; use the 0.1.5 instructions above.
 
 ## 0.1.3: isolate empty browser capture without another paid generation
 

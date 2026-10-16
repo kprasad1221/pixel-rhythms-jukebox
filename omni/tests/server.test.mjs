@@ -25,6 +25,7 @@ test('only a local JSON request can mint a model-scoped token; no private key is
   const scope = JSON.parse(options.body).authorization_details[0];
   assert.deepEqual(scope.resources.models.match, ['reactor/fast-h3-omni']);
   assert.equal(scope.constraints.max_sessions, 1);
+  assert.equal(scope.constraints.max_session_duration_seconds, 30);
   return Response.json({jwt:'fake-test-token', other:'not-returned'});
 } }, async request => {
   assert.equal((await request('/api/token', { ...tokenRequest, headers:{ ...tokenRequest.headers, Origin:'https://unrelated.example' } })).status, 403);

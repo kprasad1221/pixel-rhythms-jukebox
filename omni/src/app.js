@@ -44,14 +44,18 @@ function renderPads() {
   pads.forEach((pad, i) => {
     const button = buttons[i];
     button.querySelector('.pad-name').textContent = pad.name;
-    button.querySelector('.pad-mode').textContent = pending === i ? 'Preparing' : `${pad.group}${takes.has(i) ? ' · new take' : ''}`;
+    button.querySelector('.pad-mode').textContent = pending === i ? 'Preparing' : `${pad.group}${takes.get(i)?.source === 'local-capture-test' ? ' · LOCAL TEST' : takes.has(i) ? ' · new take' : ''}`;
     button.setAttribute('aria-pressed', String(activePad === i));
     button.setAttribute('aria-label', `${pad.name}, ${pad.group}, key ${pad.key.toUpperCase()}`);
     button.classList.toggle('pending', pending === i);
     button.disabled = generating && pending !== null;
   });
   $('#pad-count').textContent = `${pads.filter(p => p.clip).length}/10 loops · ${pads.filter(p => p.image && p.audio && p.prompt.trim()).length}/10 generation presets`;
-  $('#download-take').disabled = !takes.has(edited);
+  const take = takes.get(edited);
+  $('#download-take').disabled = !take;
+  $('#download-take').textContent = take?.source === 'local-capture-test' ? `Download Pad ${edited+1} test clip` : `Download Pad ${edited+1} latest take`;
+  $('#test-capture').textContent = `Create free test clip for Pad ${edited+1}`;
+  $('#take-status').textContent = take?.source === 'local-capture-test' ? `Pad ${edited+1} holds a temporary LOCAL TEST clip. In Play loops, press Pad ${edited+1} to play it. Download it before reloading. Your original loop is still assigned.` : take ? `Pad ${edited+1} holds a captured Reactor take for this visit. Download before reloading.` : `Pad ${edited+1} has no temporary take. In Play loops it uses its assigned existing loop.`;
   $('#generate-pad').disabled = pending !== null;
   $('#check-inputs').disabled = pending !== null;
   $('#test-capture').disabled = pending !== null;
@@ -89,10 +93,12 @@ async function activate(id, existingOnly = false, explicitGenerate = false) {
   const pad = { ...pads[id] }, label = `${pad.name} · ${pad.group}`;
   const generate = explicitGenerate || (!existingOnly && $('#play-mode').value === 'generate');
   if (!generate) {
-    const media = existingOnly ? pad.clip : (takes.get(id)?.blob || pad.clip);
+    const take = existingOnly ? null : takes.get(id);
+    const media = existingOnly ? pad.clip : (take?.blob || pad.clip);
+    const playbackLabel = take?.source === 'local-capture-test' ? `${label} · LOCAL TEST` : take ? `${label} · new take` : `${label} · original loop`;
     if (!media) { openEditor(id); status(`Choose an existing loop for ${label}, or prepare its generation references.`); return; }
-    activity.add('Playback', `Loading pad ${id+1} · ${label}.`);
-    try { await player.play(media, label, id); activity.add('Playback', `Pad ${id+1} playing locally; fade completed.`); }
+    activity.add('Playback', `Loading pad ${id+1} · ${playbackLabel}.`);
+    try { await player.play(media, playbackLabel, id); activity.add('Playback', `Pad ${id+1}${take?.source === 'local-capture-test' ? ' LOCAL TEST' : ''} playing locally; fade completed.`); }
     catch (error) { status(error.message); activity.add('Playback', error.message, 'error'); }
     return;
   }
@@ -108,18 +114,19 @@ async function activate(id, existingOnly = false, explicitGenerate = false) {
     openEditor(id); report('Local validation', 'Assigned inputs pass basic checks. Paid generation is disabled; no connection, upload or request made. Use Check inputs for the free media check.', 'error');
     $('#attempt-status').focus({ preventScroll: true }); $('#attempt-status').scrollIntoView({ block: 'nearest' }); return;
   }
+  $('#allow-generation').checked = false; // Consent applies to this attempt only.
   pending = id; renderPads(); $('#working').hidden = false; $('#working-label').textContent = `Preparing ${pad.name}`;
   try {
     // Unlock local sound during the pad gesture, before the network wait.
     report('Playback', 'Unlocking browser audio for eventual local playback.');
     await player.unlock();
     const take = await omni.generate(pad, phase => { $('#working-label').textContent = `${phase} · ${pad.name}`; sessionStatus(`${phase} · ${pad.name}`); });
-    takes.set(id, take); renderPads();
+    takes.set(id, take); $('#play-mode').value = 'loops'; renderPads();
     $('#working-label').textContent = `Ready · ${pad.name}`;
     report('Playback', 'Loading captured passage into the local Jukebox.');
     try { await player.play(take.blob, `${label} · new take`, id); report('Playback', 'Local playback started and fade completed.'); }
     catch (error) { report('Playback', `${error.message} Captured take retained: choose Play loops and tap this pad to retry, or Save latest take.`, 'error'); }
-    sessionStatus('Passage received. Reactor remains connected until End Reactor or the five-minute timeout.');
+    sessionStatus(omni.disconnectUnconfirmed ? 'Passage captured, but termination could not be confirmed. Check Reactor session state.' : 'Passage captured. Reactor disconnected before local playback.');
   } catch (error) { report('Attempt stopped', `${error.message} Current local clip retained. See the preceding stage for where it stopped.`, 'error'); sessionStatus(omni.disconnectUnconfirmed ? 'Disconnect could not be confirmed. Check Reactor session state.' : omni.reactor ? 'Reactor is still connected. Use End Reactor.' : 'Reactor is off.'); }
   finally { pending = null; $('#working').hidden = true; renderPads(); }
 }
@@ -133,16 +140,26 @@ for (const kind of ['image','audio','clip']) $(`#pad-${kind}`).addEventListener(
 });
 $('#test-capture').addEventListener('click', async () => {
   if (pending !== null) return;
-  attemptContext = `Local capture check ${++attemptNumber}`;
-  pending = edited; renderPads();
+  readEditor();
+  const id = edited;
+  attemptContext = `Local capture check ${++attemptNumber} / pad ${id+1}`;
+  if (omni.reactor) { report('Local capture test', 'End Reactor before running the free pad test.', 'error'); return; }
+  if (takes.has(id) && takes.get(id).source !== 'local-capture-test') {
+    report('Local capture test', 'This pad already has a generated take. Choose another pad for the local test so that take is retained.', 'error'); return;
+  }
+  $('#allow-generation').checked = false;
+  $('#play-mode').value = 'loops';
+  pending = id; renderPads();
   const preview = $('#capture-test-preview');
   preview.pause(); preview.hidden = true; preview.removeAttribute('src'); preview.load();
   if (capturePreviewURL) URL.revokeObjectURL(capturePreviewURL);
   capturePreviewURL = null;
   try {
     const blob = await testBrowserCapture(report);
+    takes.set(id, { blob, clipId: `local-test-${Date.now()}`, source: 'local-capture-test', seconds: 3,
+      prompt: 'Synthetic local capture test: moving rectangle and 220 Hz tone. No Reactor generation or authored references used.', createdAt: new Date().toISOString() });
     capturePreviewURL = URL.createObjectURL(blob); preview.src = capturePreviewURL; preview.hidden = false; preview.load();
-    report('Local capture test', `Recorded ${blob.size} bytes. Press Play on the LOCAL test video to check the moving pattern. This does not verify Reactor media reception.`);
+    report('Local capture test', `Recorded ${blob.size} bytes as pad ${id+1}’s temporary LOCAL TEST take. Play loops is selected and paid generation disabled. Press pad ${id+1}, then use Download test clip for that pad. Original media assignments are retained. This does not verify Reactor reception.`);
   } catch (error) { report('Local capture test', error.message, 'error'); }
   finally { pending = null; renderPads(); }
 });
@@ -170,7 +187,12 @@ $('#download-take').addEventListener('click', () => {
   const take = takes.get(edited); if (!take) return;
   const name = `pad-${edited+1}-${take.clipId}`;
   download(take.blob, `${name}.${take.blob.type.includes('mp4') ? 'mp4' : 'webm'}`);
-  download(new Blob([JSON.stringify({ ...presetText([pads[edited]]).pads[0], clipId: take.clipId, prompt: take.prompt, createdAt: take.createdAt }, null, 2)], {type:'application/json'}), `${name}.json`);
+  const localTest = take.source === 'local-capture-test';
+  download(new Blob([JSON.stringify({ ...presetText([pads[edited]]).pads[0],
+    ...(localTest ? { files: { image: null, audio: null, clip: null } } : {}),
+    source: take.source || 'reactor', seconds: take.seconds ?? pads[edited].seconds,
+    clipId: take.clipId, prompt: take.prompt, createdAt: take.createdAt }, null, 2)], {type:'application/json'}), `${name}.json`);
+  activity.add('Save', `Download requested for pad ${edited+1}${localTest ? ' LOCAL TEST' : ''}: video (${take.blob.size} bytes) and JSON record. Check your downloads to confirm the files were saved.`);
 });
 $('#export').addEventListener('click', () => { readEditor(); download(new Blob([JSON.stringify(presetText(pads), null, 2)], {type:'application/json'}), 'pixel-rhythms-pad-settings.json'); });
 $('#import').addEventListener('change', async event => {

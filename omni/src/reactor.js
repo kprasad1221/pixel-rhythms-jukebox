@@ -26,7 +26,7 @@ async function validateMedia(pad) {
 }
 
 export class OmniSession {
-  constructor(onStatus, onActivity = () => {}, ReactorClient = Reactor) { this.onStatus = onStatus; this.onActivity = onActivity; this.ReactorClient = ReactorClient; this.reactor = null; this.epoch = 0; this.recorder = null; this.timer = null; this.disconnectUnconfirmed = false; this.trackCleanups = []; }
+  constructor(onStatus, onActivity = () => {}, ReactorClient = Reactor, limits = {}) { this.onStatus = onStatus; this.onActivity = onActivity; this.ReactorClient = ReactorClient; this.reactor = null; this.epoch = 0; this.recorder = null; this.timer = null; this.disconnectUnconfirmed = false; this.trackCleanups = []; this.attemptTimeoutMs = limits.attemptTimeoutMs ?? 25000; this.disconnectTimeoutMs = limits.disconnectTimeoutMs ?? 5000; this.inFlight = false; this.endPromise = null; }
   log(stage, message, level = 'info') { this.onActivity(stage, message, level); }
   async checkInputs(pad) {
     this.phase = 'Local validation';
@@ -35,6 +35,8 @@ export class OmniSession {
     await validateMedia(pad);
   }
   async connect() {
+    if (this.endPromise) throw new Error('Previous session cleanup is still running.');
+    if (this.disconnectUnconfirmed) throw new Error('Previous session termination is unconfirmed. Check Reactor before opening another session.');
     if (this.reactor?.getStatus() === 'ready') { this.log('Connection', 'Reusing ready Reactor session.'); return; }
     const epoch = this.epoch;
     this.phase = 'Connection';
@@ -73,10 +75,7 @@ export class OmniSession {
       if (status === 'waiting') this.onStatus('Waiting for Reactor… your current loop keeps playing.');
       if (status === 'disconnected') this.events.close('Reactor disconnected. Your local loops are still available.');
     });
-    // A finite rehearsal session, not a monetary cap. End still explicitly
-    // disconnects the SDK; stopping local playback alone does not do that.
-    this.timer = setTimeout(async () => { const ended = await this.end(); this.onStatus(ended ? 'Five-minute Reactor session ended. Local loops remain available.' : 'Disconnect could not be confirmed. Check Reactor session state.'); }, 300000);
-    await reactor.connect(token.jwt);
+    await reactor.connect(token.jwt, { maxAttempts: 1 });
     this.log('Connection', `SDK connect call completed; current status: ${reactor.getStatus()}.`);
     const deadline = Date.now() + 180000;
     while (reactor.getStatus() !== 'ready') {
@@ -113,6 +112,31 @@ export class OmniSession {
     } catch (error) { this.log('Incoming media', `${label}: statistics unavailable (${error.message}).`); }
   }
   async generate(pad, onPhase) {
+    if (this.inFlight) throw new Error('An attempt is already running. No new request sent.');
+    if (this.disconnectUnconfirmed) throw new Error('Previous session termination is unconfirmed. Check Reactor before another attempt.');
+    this.inFlight = true;
+    let deadline;
+    try {
+      const take = await Promise.race([
+        this.runGeneration(pad, onPhase),
+        new Promise((_, reject) => {
+          deadline = setTimeout(() => reject(new Error('Local attempt time limit reached. Stopping without retry; token requests a 30-second server session limit.')), this.attemptTimeoutMs);
+        }),
+      ]);
+      clearTimeout(deadline);
+      this.log('Connection', 'Capture finished; terminating Reactor before local playback.');
+      await this.end();
+      return take;
+    } catch (error) {
+      this.log('Attempt limit / error', error.message, 'error');
+      await this.end();
+      throw error;
+    } finally {
+      clearTimeout(deadline);
+      this.inFlight = false;
+    }
+  }
+  async runGeneration(pad, onPhase) {
     const epoch = this.epoch;
     const assertCurrent = () => { if (epoch !== this.epoch) throw new Error('Session ended.'); };
     try {
@@ -139,7 +163,7 @@ export class OmniSession {
       assertCurrent();
       this.log('Request acceptance', `clip_queued received: ${id}. Accepted is not generated.`);
       this.phase = 'Generation';
-      this.log('Generation', `Waiting for clip_generated for ${id} (up to 180 seconds).`);
+      this.log('Generation', `Waiting for clip_generated for ${id} (within the overall attempt time limit).`);
       onPhase('Generating');
       await this.events.wait('clip_generated', id); assertCurrent();
       this.phase = 'Reception';
@@ -159,7 +183,7 @@ export class OmniSession {
       this.log('Capture', 'Recorder armed; requesting Reactor stream playback.');
       const startedAt = performance.now();
       await this.command('play', { clip_id: id }, false);
-      this.log('Reception', 'Play command sent; awaiting clip_finished (up to 90 seconds). This is offstage stream reception.');
+      this.log('Reception', 'Play command sent; awaiting clip_finished (within the overall attempt time limit). This is offstage stream reception.');
       await this.events.wait('clip_finished', id, 90000); assertCurrent();
       await this.logIncomingMedia('At clip_finished'); assertCurrent();
       // clip_finished describes sent media, not browser presentation. Allow
@@ -169,28 +193,49 @@ export class OmniSession {
       assertCurrent();
       await this.logIncomingMedia('After transport drain'); assertCurrent();
       for (const [name, track] of this.tracks) this.log('Reception', `Before recorder stop · ${name} · ${trackState(track)}`);
-      const blob = await capture.finish();
+      const blob = await capture.finish(); assertCurrent();
       this.recorder = null;
       this.log('Capture', `Captured ${blob.size} bytes (${blob.type}). Local playback has not been verified yet.`);
-      return { blob, clipId: id, prompt: promptFor(pad), createdAt: new Date().toISOString() };
+      return { blob, clipId: id, source: 'reactor', seconds: pad.seconds, prompt: promptFor(pad), createdAt: new Date().toISOString() };
     } catch (error) {
       this.log(this.phase || 'Local validation', `Stopped: ${error.message}`, 'error');
-      await this.end();
+      // A timed-out operation can settle later; it must not end a newer session.
+      if (epoch === this.epoch) await this.end();
       throw error;
     }
   }
   async end() {
+    if (this.endPromise) return this.endPromise;
+    this.endPromise = this.finishSession();
+    try { return await this.endPromise; }
+    finally { this.endPromise = null; }
+  }
+  async finishSession() {
     this.epoch++;
     clearTimeout(this.timer);
     this.events?.close();
-    this.trackCleanups.splice(0).forEach(cleanup => cleanup());
-    if (this.recorder?.state !== 'inactive' && this.recorder) this.recorder.stop();
+    for (const cleanup of this.trackCleanups.splice(0)) {
+      try { cleanup(); } catch { /* Listener cleanup must not prevent disconnect. */ }
+    }
+    if (this.recorder?.state !== 'inactive' && this.recorder) {
+      try { this.recorder.stop(); }
+      catch (error) { this.log('Capture', `Recorder cleanup failed: ${error.message}. Continuing Reactor disconnect.`, 'error'); }
+    }
     this.recorder = null;
     const reactor = this.reactor; this.reactor = null;
     if (reactor) {
       this.log('Connection', 'Disconnect requested. In-flight charges are not cancelled by local playback stopping.');
-      try { await reactor.disconnect(); this.disconnectUnconfirmed = false; this.log('Connection', 'SDK disconnect completed.'); }
-      catch (error) { this.disconnectUnconfirmed = true; this.log('Connection', `Disconnect failed: ${error.message}. Check Reactor account session state.`, 'error'); }
+      let timer;
+      try {
+        // Default/non-recoverable disconnect releases the session's GPU.
+        await Promise.race([
+          reactor.disconnect(),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Disconnect confirmation timed out')), this.disconnectTimeoutMs); }),
+        ]);
+        this.disconnectUnconfirmed = false; this.log('Connection', 'SDK disconnect completed.');
+      }
+      catch (error) { this.disconnectUnconfirmed = true; this.log('Connection', `Disconnect failed: ${error.message}. Further attempts blocked; check Reactor account session state. Server token requested a 30-second limit.`, 'error'); }
+      finally { clearTimeout(timer); }
     }
     return !this.disconnectUnconfirmed;
   }

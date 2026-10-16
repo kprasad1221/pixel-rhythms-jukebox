@@ -42,7 +42,7 @@ export function createApp({ apiKey = process.env.REACTOR_API_KEY, tokenFetch = f
           headers: { 'Content-Type': 'application/json', 'Reactor-API-Key': apiKey },
           body: JSON.stringify({ expires_after: 3600, authorization_details: [{
             type: 'session', resources: { models: { match: ['reactor/fast-h3-omni'] } },
-            constraints: { max_sessions: 1 },
+            constraints: { max_sessions: 1, max_session_duration_seconds: 30 },
           }] }),
         });
         if (!upstream.ok) return json(502, { error: `Reactor token request returned ${upstream.status}.` });

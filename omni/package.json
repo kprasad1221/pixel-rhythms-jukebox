@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node build.mjs",
     "dev": "npm run build && node --env-file-if-exists=.env.local server.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/pad-browser.mjs"
   },
   "engines": { "node": ">=22" },
   "dependencies": { "@reactor-team/js-sdk": "3.1.0" },
