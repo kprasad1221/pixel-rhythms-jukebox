@@ -7,7 +7,7 @@
 </head>
 <body>
 <main>
-  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.2</span></header>
+  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.3</span></header>
   <div class="toolbar">
     <label>Play mode <select id="play-mode"><option value="loops">Play loops</option><option value="generate">Generate variations</option></select></label>
     <button id="arrange" type="button">Arrange pads</button>
@@ -64,7 +64,9 @@
     <label><input id="allow-generation" type="checkbox"> Enable paid generation for this visit.</label>
     <span>One request at a time. Sessions end after five minutes; this is not a spending cap. A new passage is received before it fades in.</span>
   </div>
-          <div class="actions"><button id="check-inputs" type="button">Check inputs (no credits)</button><button id="generate-pad" type="button">Generate selected pad</button></div>
+          <div class="actions"><button id="check-inputs" type="button">Check inputs (no credits)</button><button id="test-capture" type="button">Test browser capture (no credits)</button><button id="generate-pad" type="button">Generate selected pad</button></div>
+          <p>The capture test records a local moving pattern and tone for three seconds, without using your camera, microphone or Reactor. Its recording appears here, muted; press Play to inspect it.</p>
+          <video id="capture-test-preview" controls muted playsinline hidden aria-label="Local browser capture test recording"></video>
           <p id="attempt-status" role="status" tabindex="-1">No generation attempted this visit.</p>
         </section>
         <div class="actions"><button id="save-pad" type="button">Save pad</button><button id="audition" type="button">Play existing loop</button><button id="download-take" type="button" disabled>Save latest take</button></div>

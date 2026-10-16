@@ -2,13 +2,14 @@ import { defaultPads, validatePad, padIssues, presetText, importPresetText } fro
 import { loadPads, savePads } from './store.js';
 import { createPlayer } from './player.js';
 import { OmniSession } from './reactor.js';
+import { testBrowserCapture } from './capture.js';
 import { createActivity, safeLogText } from './activity.js';
 
 const $ = selector => document.querySelector(selector);
 const status = text => { $('#status').textContent = text; };
 const sessionStatus = text => { $('#session-status').textContent = text; };
 const activity = createActivity($('#activity-log'));
-let attemptNumber = 0, attemptContext = '';
+let attemptNumber = 0, attemptContext = '', capturePreviewURL = null;
 function report(stage, message, level = 'info') {
   activity.add(stage, message, level, attemptContext);
   const text = `${attemptContext ? attemptContext + ' · ' : ''}${stage}: ${safeLogText(message)}`;
@@ -53,6 +54,7 @@ function renderPads() {
   $('#download-take').disabled = !takes.has(edited);
   $('#generate-pad').disabled = pending !== null;
   $('#check-inputs').disabled = pending !== null;
+  $('#test-capture').disabled = pending !== null;
 }
 function selectEditor(id) {
   edited = id; const pad = pads[id];
@@ -129,6 +131,22 @@ for (const kind of ['image','audio','clip']) $(`#pad-${kind}`).addEventListener(
   if (!event.target.files[0]) return;
   readEditor(); pads[edited][kind] = event.target.files[0]; selectEditor(edited); await save();
 });
+$('#test-capture').addEventListener('click', async () => {
+  if (pending !== null) return;
+  attemptContext = `Local capture check ${++attemptNumber}`;
+  pending = edited; renderPads();
+  const preview = $('#capture-test-preview');
+  preview.pause(); preview.hidden = true; preview.removeAttribute('src'); preview.load();
+  if (capturePreviewURL) URL.revokeObjectURL(capturePreviewURL);
+  capturePreviewURL = null;
+  try {
+    const blob = await testBrowserCapture(report);
+    capturePreviewURL = URL.createObjectURL(blob); preview.src = capturePreviewURL; preview.hidden = false; preview.load();
+    report('Local capture test', `Recorded ${blob.size} bytes. Press Play on the LOCAL test video to check the moving pattern. This does not verify Reactor media reception.`);
+  } catch (error) { report('Local capture test', error.message, 'error'); }
+  finally { pending = null; renderPads(); }
+});
+$('#capture-test-preview').addEventListener('playing', () => activity.add('Local capture test', 'Local test recording playback started. No Reactor connection made.'));
 $('#generate-pad').addEventListener('click', () => activate(edited, false, true));
 $('#check-inputs').addEventListener('click', async () => {
   if (pending !== null) return;

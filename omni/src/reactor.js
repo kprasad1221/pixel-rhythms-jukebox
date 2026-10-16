@@ -1,14 +1,9 @@
 import { Reactor } from '@reactor-team/js-sdk';
 import { ClipEvents } from './events.js';
 import { validatePad, promptFor } from './pads.js';
+import { recordingType, startCapture, trackState } from './capture.js';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-function recordingType() {
-  if (!globalThis.MediaRecorder) throw new Error('This browser cannot capture incoming clips. Try Chrome on the laptop.');
-  const type = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find(type => MediaRecorder.isTypeSupported(type));
-  if (!type) throw new Error('No supported video recording format. Try Chrome on the laptop.');
-  return type;
-}
 async function validateMedia(pad) {
   validatePad(pad);
   let bitmap;
@@ -31,7 +26,7 @@ async function validateMedia(pad) {
 }
 
 export class OmniSession {
-  constructor(onStatus, onActivity = () => {}, ReactorClient = Reactor) { this.onStatus = onStatus; this.onActivity = onActivity; this.ReactorClient = ReactorClient; this.reactor = null; this.epoch = 0; this.recorder = null; this.timer = null; this.disconnectUnconfirmed = false; }
+  constructor(onStatus, onActivity = () => {}, ReactorClient = Reactor) { this.onStatus = onStatus; this.onActivity = onActivity; this.ReactorClient = ReactorClient; this.reactor = null; this.epoch = 0; this.recorder = null; this.timer = null; this.disconnectUnconfirmed = false; this.trackCleanups = []; }
   log(stage, message, level = 'info') { this.onActivity(stage, message, level); }
   async checkInputs(pad) {
     this.phase = 'Local validation';
@@ -60,7 +55,15 @@ export class OmniSession {
       if (message.type === 'clip_started') this.log('Reception', `clip_started for ${id}; Reactor is sending the passage. Local Jukebox playback has not started.`);
       if (message.type === 'clip_finished') this.log('Reception', `clip_finished for ${id}; Reactor reports media sent. Finishing browser capture.`);
     });
-    reactor.on('trackReceived', (name, track) => { this.tracks.set(name, track); this.log('Reception', `Output track available: ${name} (${track.kind}).`); });
+    reactor.on('trackReceived', (name, track) => {
+      this.tracks.set(name, track);
+      this.log('Reception', `Output track available: ${name} · ${trackState(track)}. Track availability does not confirm media arrival.`);
+      for (const event of ['unmute', 'mute', 'ended']) {
+        const handler = () => this.log('Reception', `${name} ${event} · ${trackState(track)}`);
+        track.addEventListener?.(event, handler);
+        this.trackCleanups.push(() => track.removeEventListener?.(event, handler));
+      }
+    });
     reactor.on('error', error => {
       if (error.operation === 'sendCommand') this.commandError = error;
       this.log(this.phase || 'Connection', `SDK ${error.operation || 'error'} [${error.code || 'unknown'}]: ${error.message}`, 'error');
@@ -93,12 +96,27 @@ export class OmniSession {
     if (expectsReply && reply === undefined) throw new Error(`${name} was not accepted by Reactor.`);
     return reply;
   }
+  async logIncomingMedia(label) {
+    try {
+      const pc = this.reactor?.getPeerConnection?.();
+      if (!pc) { this.log('Incoming media', `${label}: peer-connection statistics unavailable.`); return; }
+      const stats = await pc.getStats();
+      let found = false;
+      stats.forEach(stat => {
+        if (stat.type !== 'inbound-rtp' || stat.isRemote) return;
+        found = true;
+        const fields = ['bytesReceived', 'packetsReceived', 'framesReceived', 'framesDecoded', 'totalSamplesReceived']
+          .filter(key => Number.isFinite(stat[key])).map(key => `${key}=${stat[key]}`).join(', ');
+        this.log('Incoming media', `${label} · ${stat.kind || stat.mediaType || 'track'} cumulative: ${fields || 'counts unavailable'}.`);
+      });
+      if (!found) this.log('Incoming media', `${label}: no inbound RTP statistics yet.`);
+    } catch (error) { this.log('Incoming media', `${label}: statistics unavailable (${error.message}).`); }
+  }
   async generate(pad, onPhase) {
     const epoch = this.epoch;
     const assertCurrent = () => { if (epoch !== this.epoch) throw new Error('Session ended.'); };
     try {
       await this.checkInputs(pad); // Check local inputs before connecting or paying.
-      const mimeType = recordingType();
       this.log('Local validation', 'Local media checks passed.');
       assertCurrent();
       await this.connect(); assertCurrent();
@@ -134,32 +152,25 @@ export class OmniSession {
       }
       onPhase('Receiving passage');
       const media = new MediaStream([this.tracks.get('main_video'), this.tracks.get('main_audio')]);
-      const recorder = this.recorder = new MediaRecorder(media, { mimeType, videoBitsPerSecond: 6000000 });
-      const chunks = [];
-      let recordingError;
-      const recorded = new Promise(resolve => {
-        recorder.ondataavailable = event => { if (event.data.size) { if (!chunks.length) this.log('Reception', 'First nonempty recorded media chunk received. Playability still needs verification.'); chunks.push(event.data); } };
-        recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType }));
-        recorder.onerror = event => { recordingError = event.error || new Error('Recording failed.'); this.log('Capture', recordingError.message, 'error'); };
-      });
       this.phase = 'Capture';
-      recorder.start(250);
-      this.log('Capture', `MediaRecorder started (${mimeType}); requesting Reactor stream playback.`);
+      await this.logIncomingMedia('Before Reactor play'); assertCurrent();
+      const capture = startCapture(media, (...args) => this.log(...args));
+      this.recorder = capture.recorder;
+      this.log('Capture', 'Recorder armed; requesting Reactor stream playback.');
       const startedAt = performance.now();
       await this.command('play', { clip_id: id }, false);
       this.log('Reception', 'Play command sent; awaiting clip_finished (up to 90 seconds). This is offstage stream reception.');
       await this.events.wait('clip_finished', id, 90000); assertCurrent();
+      await this.logIncomingMedia('At clip_finished'); assertCurrent();
       // clip_finished describes sent media, not browser presentation. Allow
       // transport drain. This v0.1 capture can include boundary padding; live
       // A/V alignment and loop seams need a laptop test, not a seamless claim.
       await wait(Math.max(1000, pad.seconds * 1000 + 1000 - (performance.now() - startedAt)));
       assertCurrent();
-      if (recorder.state !== 'inactive') recorder.stop();
-      let captureTimer;
-      const blob = await Promise.race([recorded, new Promise((_, reject) => { captureTimer = setTimeout(() => reject(new Error('Browser capture did not finish within 10 seconds.')), 10000); })]).finally(() => clearTimeout(captureTimer));
+      await this.logIncomingMedia('After transport drain'); assertCurrent();
+      for (const [name, track] of this.tracks) this.log('Reception', `Before recorder stop · ${name} · ${trackState(track)}`);
+      const blob = await capture.finish();
       this.recorder = null;
-      if (recordingError) throw recordingError;
-      if (!blob.size) throw new Error('No playable media was captured.');
       this.log('Capture', `Captured ${blob.size} bytes (${blob.type}). Local playback has not been verified yet.`);
       return { blob, clipId: id, prompt: promptFor(pad), createdAt: new Date().toISOString() };
     } catch (error) {
@@ -172,6 +183,7 @@ export class OmniSession {
     this.epoch++;
     clearTimeout(this.timer);
     this.events?.close();
+    this.trackCleanups.splice(0).forEach(cleanup => cleanup());
     if (this.recorder?.state !== 'inactive' && this.recorder) this.recorder.stop();
     this.recorder = null;
     const reactor = this.reactor; this.reactor = null;

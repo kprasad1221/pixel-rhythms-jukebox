@@ -1,6 +1,20 @@
-# Pixel Rhythms · Omni prototype 0.1.2
+# Pixel Rhythms · Omni prototype 0.1.3
 
 A ten-pad extension of KP's existing glass Jukebox. Same two playback decks, crossfades, master volume, waveform and stereo meters. Each pad can hold an existing loop, one Krea image, one Daydream reference, and an authored prompt. Musical variation in the generated soundtrack is intentional.
+
+## 0.1.3: isolate empty browser capture without another paid generation
+
+KP's single 5.875-second test at 05:01 UTC on October 16 confirmed reference uploads, `clip_queued`, `clip_generated`, `clip_started`, and `clip_finished`. The browser recorder returned zero bytes; SDK disconnect completed. This confirms model-side generation and stream-send events. It does **not** confirm that frames/audio arrived in the browser or that the generated passage played locally. The cause of the empty capture is still unresolved.
+
+**Next action is free:** after updating, leave paid generation unchecked, open Arrange pads and click **Test browser capture (no credits)**. This records three seconds of a local canvas pattern and synthesized tone, using the same capture helper as the Reactor stream. It requests no camera/microphone access and makes no API call. A separate, clearly labeled local test video appears below the controls. Press Play on that video; it is muted initially. A recording that plays verifies local browser capture/playback for this synthetic source, not live Reactor reception. Saved assignments and generated takes are not replaced by this test.
+
+The real incoming path now records track `readyState`, `enabled`, and `muted`, plus mute/unmute/end events. It logs numeric inbound WebRTC byte/frame/sample counters before playout, at `clip_finished`, and after transport drain (when available). Recorder logs include its state, first nonempty chunk, empty events and final byte/chunk totals. Raw peer-connection data, candidate addresses and tokens are not logged. These observations separate missing incoming media from a recorder problem; they do not assume a cause.
+
+Verification: build and **23** automated checks pass, including zero-byte failure, final-chunk delivery, encoder-error reporting, and inbound-stat filtering. Actual Chromium self-test generated a **68,445-byte** WebM with VP8 video and Opus audio; its 320×180 recording played in the browser. No token calls, external requests or browser errors occurred. The new editor/result was visually inspected. This was local synthetic media only; no second paid generation was performed during this update. The live capture failure remains open.
+
+References: [MediaRecorder data delivery and stop ordering](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/dataavailable_event), [Reactor JavaScript class](https://docs.reactor.inc/sdk-reference/reactor-class), and the installed SDK 3.1.0 declarations. Reactor's `clip_finished` remains a model send event, not proof of a received/playable file.
+
+Update in the Git checkout using End Reactor, Ctrl+C, `git pull --ff-only`, then `npm.cmd run dev`. Refresh the same address and look for **0.1.3**. Use the free capture test before considering another separately agreed paid attempt.
 
 ## 0.1.2: fix the stall after SDK ready
 
@@ -36,7 +50,7 @@ This update keeps the ten-pad instrument and its existing IndexedDB database (`p
    npm.cmd run dev
    ```
 
-5. Open **http://127.0.0.1:8093** in the same browser/profile as before, then refresh. The heading should say **0.1.2**. Keep this exact host and port to retain the same browser assignments.
+5. Open **http://127.0.0.1:8093** in the same browser/profile as before, then refresh. The heading should say **0.1.3**. Keep this exact host and port to retain the same browser assignments.
 
 For a Git checkout with no uncommitted edits, pulling `codex/omni-jukebox-prototype` is an alternative to copying source files. Do not reset or clean your local checkout.
 
@@ -114,6 +128,7 @@ Pad configuration and selected file copies use IndexedDB in this browser, tied t
 - `src/player.js`, `src/meters.js`: local playback, crossfades, and audio feedback adapted from the original Jukebox.
 - `src/app.js`, `src/pads.js`, `src/store.js`: pad actions, prompt configuration, and browser persistence.
 - `src/activity.js`: bounded timestamped activity log with URL/token redaction.
+- `src/capture.js`: shared browser recorder and local synthetic capture test.
 - `src/reactor.js`, `src/events.js`: session lifecycle, reference uploads, matched generation events, and media capture.
 - `server.mjs`: local files and server-side token exchange.
 - `build.mjs`: bundles the browser code and copies its required WebAssembly asset.

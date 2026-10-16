@@ -19,7 +19,7 @@ function fixture(t, mode = 'upload-fails') {
     start(){this.state='recording';}
     stop(){this.state='inactive';this.ondataavailable?.({data:new Blob(['simulated media'])});this.onstop?.();}
   });
-  mock('MediaStream', class {});
+  mock('MediaStream', class { constructor(tracks){this.tracks=tracks;} getTracks(){return this.tracks;} });
   class FakeReactor {
     handlers = {}; #status = 'disconnected';
     getStatus(){return this.#status;}
@@ -112,4 +112,19 @@ test('ready session is reused through the SDK getStatus interface', async t => {
  assert.equal(f.tokenCalls, 1);
  assert.deepEqual(f.commands, ['set_autoplay']);
  assert.ok(f.log.some(([stage, text]) => stage === 'Connection' && text.includes('connect call completed')));
+});
+test('incoming diagnostics select numeric inbound media counts without logging raw peer data', async t => {
+ const f=fixture(t);
+ f.session.reactor={getPeerConnection:()=>({getStats:async()=>new Map([
+  ['video',{type:'inbound-rtp',kind:'video',bytesReceived:12345,framesReceived:24,framesDecoded:24,privateURL:'never log'}],
+  ['audio',{type:'inbound-rtp',kind:'audio',bytesReceived:4000,totalSamplesReceived:48000}],
+  ['outbound',{type:'outbound-rtp',bytesSent:999999}],
+ ])})};
+ // No SDK connection was created; avoid invoking disconnect on the stats stub.
+ t.after(()=>{f.session.reactor=null;});
+ await f.session.logIncomingMedia('After transport drain');
+ const text=JSON.stringify(f.log);
+ assert.ok(text.includes('framesDecoded=24'));assert.ok(text.includes('totalSamplesReceived=48000'));
+ assert.ok(!text.includes('never log'));assert.ok(!text.includes('999999'));
+ f.session.reactor=null;
 });

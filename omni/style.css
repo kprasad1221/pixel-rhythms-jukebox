@@ -94,3 +94,5 @@ textarea { width:100%; resize:vertical; line-height:1.6; }
 #activity-log li { padding:7px; border-bottom:1px solid #bdd0d8; white-space:pre-wrap; }
 #activity-log li[data-level=error] { background:#fff0df; color:#743212; }
 .generation-controls #live-note label { display:flex; align-items:center; gap:8px; margin:0; }
+
+#capture-test-preview { width:100%; max-height:220px; background:#123f50; margin-top:12px; border-radius:8px; }
