@@ -1,11 +1,28 @@
-import { defaultPads, validatePad, presetText, importPresetText } from './pads.js';
+import { defaultPads, validatePad, padIssues, presetText, importPresetText } from './pads.js';
 import { loadPads, savePads } from './store.js';
 import { createPlayer } from './player.js';
 import { OmniSession } from './reactor.js';
+import { createActivity, safeLogText } from './activity.js';
 
 const $ = selector => document.querySelector(selector);
 const status = text => { $('#status').textContent = text; };
 const sessionStatus = text => { $('#session-status').textContent = text; };
+const activity = createActivity($('#activity-log'));
+let attemptNumber = 0, attemptContext = '';
+function report(stage, message, level = 'info') {
+  activity.add(stage, message, level, attemptContext);
+  const text = `${attemptContext ? attemptContext + ' · ' : ''}${stage}: ${safeLogText(message)}`;
+  $('#attempt-status').textContent = text;
+  $('#attempt-status').dataset.error = String(level === 'error');
+  status(text);
+}
+function renderInputs() {
+  $('#generate-label').textContent = `Generate pad ${edited+1} · ${pads[edited].name}`;
+  $('#input-issues').replaceChildren(...padIssues(pads[edited]).map(text => {
+    const item = document.createElement('li'); item.textContent = text; return item;
+  }));
+}
+
 let pads = defaultPads(), edited = 0, activePad = -1, pending = null, imagePreviewURL = null;
 let persistence = true;
 const takes = new Map();
@@ -19,7 +36,7 @@ const buttons = pads.map((pad, i) => {
   return button;
 });
 const player = createPlayer(status, id => { activePad = id; renderPads(); });
-const omni = new OmniSession(sessionStatus);
+const omni = new OmniSession(sessionStatus, report);
 
 function renderPads() {
   const generating = $('#play-mode').value === 'generate';
@@ -34,6 +51,8 @@ function renderPads() {
   });
   $('#pad-count').textContent = `${pads.filter(p => p.clip).length}/10 loops · ${pads.filter(p => p.image && p.audio && p.prompt.trim()).length}/10 generation presets`;
   $('#download-take').disabled = !takes.has(edited);
+  $('#generate-pad').disabled = pending !== null;
+  $('#check-inputs').disabled = pending !== null;
 }
 function selectEditor(id) {
   edited = id; const pad = pads[id];
@@ -43,7 +62,7 @@ function selectEditor(id) {
   imagePreviewURL = pad.image ? URL.createObjectURL(pad.image) : null;
   $('#image-preview').hidden = !imagePreviewURL;
   if (imagePreviewURL) $('#image-preview').src = imagePreviewURL; else $('#image-preview').removeAttribute('src');
-  renderPads();
+  renderPads(); renderInputs();
 }
 function rebuildOptions() {
   $('#edit-pad').replaceChildren(...pads.map(pad => { const option = document.createElement('option'); option.value = String(pad.id); option.textContent = `${pad.key.toUpperCase()} · ${pad.name} · ${pad.group}`; return option; }));
@@ -53,6 +72,7 @@ function readEditor() {
   const pad = pads[edited];
   pad.name = $('#pad-name').value.trim() || `Pad ${edited+1}`;
   pad.group = $('#pad-group').value.trim(); pad.prompt = $('#pad-prompt').value; pad.seconds = Number($('#pad-seconds').value);
+  renderInputs();
 }
 async function save() {
   readEditor(); rebuildOptions(); renderPads();
@@ -60,45 +80,74 @@ async function save() {
   try { await savePads(pads); $('#editor-status').textContent = 'Saved in this browser. Keep your original media files backed up.'; }
   catch { $('#editor-status').textContent = 'Browser storage could not save these files. They still work for this visit. Export settings and keep the originals.'; }
 }
-function openEditor(id) { readEditor(); rebuildOptions(); selectEditor(id); $('#editor').open = true; $('#editor').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+function openEditor(id) { readEditor(); rebuildOptions(); selectEditor(id); $('#editor').open = true; $('#editor').scrollIntoView({ block: 'nearest' }); }
 function download(blob, name) { const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); }
-async function activate(id, existingOnly = false) {
+async function activate(id, existingOnly = false, explicitGenerate = false) {
   readEditor();
   const pad = { ...pads[id] }, label = `${pad.name} · ${pad.group}`;
-  const generate = !existingOnly && $('#play-mode').value === 'generate';
+  const generate = explicitGenerate || (!existingOnly && $('#play-mode').value === 'generate');
   if (!generate) {
     const media = existingOnly ? pad.clip : (takes.get(id)?.blob || pad.clip);
     if (!media) { openEditor(id); status(`Choose an existing loop for ${label}, or prepare its generation references.`); return; }
-    try { await player.play(media, label, id); } catch (error) { status(error.message); }
+    activity.add('Playback', `Loading pad ${id+1} · ${label}.`);
+    try { await player.play(media, label, id); activity.add('Playback', `Pad ${id+1} playing locally; fade completed.`); }
+    catch (error) { status(error.message); activity.add('Playback', error.message, 'error'); }
     return;
   }
-  if (pending !== null || player.busy) { status('Let the current request or fade finish first.'); return; }
-  if (!$('#allow-generation').checked) { status('Enable paid generation below the pads when you are ready to test.'); return; }
-  try { validatePad(pad); } catch (error) { openEditor(id); status(error.message); return; }
+  if (pending !== null || player.busy) { status('Let the current request or fade finish first.'); activity.add('Local validation', 'Another request or fade is still active; no new request sent.'); return; }
+  attemptContext = `Attempt ${++attemptNumber} / pad ${id+1} (${pad.name})`;
+  report('Local validation', 'Checking assigned prompt, image, audio and duration.');
+  try { validatePad(pad); }
+  catch (error) {
+    openEditor(id); report('Local validation', `${error.message} No connection or request made.`, 'error');
+    $('#attempt-status').focus({ preventScroll: true }); $('#attempt-status').scrollIntoView({ block: 'nearest' }); return;
+  }
+  if (!$('#allow-generation').checked) {
+    openEditor(id); report('Local validation', 'Assigned inputs pass basic checks. Paid generation is disabled; no connection, upload or request made. Use Check inputs for the free media check.', 'error');
+    $('#attempt-status').focus({ preventScroll: true }); $('#attempt-status').scrollIntoView({ block: 'nearest' }); return;
+  }
   pending = id; renderPads(); $('#working').hidden = false; $('#working-label').textContent = `Preparing ${pad.name}`;
   try {
     // Unlock local sound during the pad gesture, before the network wait.
+    report('Playback', 'Unlocking browser audio for eventual local playback.');
     await player.unlock();
     const take = await omni.generate(pad, phase => { $('#working-label').textContent = `${phase} · ${pad.name}`; sessionStatus(`${phase} · ${pad.name}`); });
     takes.set(id, take); renderPads();
     $('#working-label').textContent = `Ready · ${pad.name}`;
-    try { await player.play(take.blob, `${label} · new take`, id); }
-    catch { status('Your new take is ready. Select Play loops and tap its pad to start it.'); }
+    report('Playback', 'Loading captured passage into the local Jukebox.');
+    try { await player.play(take.blob, `${label} · new take`, id); report('Playback', 'Local playback started and fade completed.'); }
+    catch (error) { report('Playback', `${error.message} Captured take retained: choose Play loops and tap this pad to retry, or Save latest take.`, 'error'); }
     sessionStatus('Passage received. Reactor remains connected until End Reactor or the five-minute timeout.');
-  } catch (error) { status(`${error.message} Your current local clip is retained.`); sessionStatus('Reactor is off.'); }
+  } catch (error) { report('Attempt stopped', `${error.message} Current local clip retained. See the preceding stage for where it stopped.`, 'error'); sessionStatus(omni.disconnectUnconfirmed ? 'Disconnect could not be confirmed. Check Reactor session state.' : omni.reactor ? 'Reactor is still connected. Use End Reactor.' : 'Reactor is off.'); }
   finally { pending = null; $('#working').hidden = true; renderPads(); }
 }
 
-$('#arrange').addEventListener('click', () => { $('#editor').open = !$('#editor').open; if ($('#editor').open) $('#editor').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+$('#arrange').addEventListener('click', () => { $('#editor').open = !$('#editor').open; if ($('#editor').open) $('#editor').scrollIntoView({ block: 'nearest' }); });
 $('#edit-pad').addEventListener('change', event => { readEditor(); selectEditor(Number(event.target.value)); });
 $('#save-pad').addEventListener('click', save);
 for (const kind of ['image','audio','clip']) $(`#pad-${kind}`).addEventListener('change', async event => {
   if (!event.target.files[0]) return;
   readEditor(); pads[edited][kind] = event.target.files[0]; selectEditor(edited); await save();
 });
+$('#generate-pad').addEventListener('click', () => activate(edited, false, true));
+$('#check-inputs').addEventListener('click', async () => {
+  if (pending !== null) return;
+  readEditor();
+  const id = edited, pad = { ...pads[id] };
+  attemptContext = `Check ${++attemptNumber} / pad ${id+1} (${pad.name})`;
+  pending = id; renderPads();
+  try { await omni.checkInputs(pad); report('Local validation', 'Inputs and browser capture support pass local checks. No connection, upload or request made. Reactor may still refuse a request.'); }
+  catch (error) { report('Local validation', `${error.message} No connection, upload or request made.`, 'error'); }
+  finally { pending = null; renderPads(); }
+});
+for (const selector of ['#pad-name', '#pad-group', '#pad-prompt', '#pad-seconds']) $(selector).addEventListener('input', readEditor);
+$('#copy-log').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(activity.text()); $('#copy-status').textContent = 'Log copied. Review it before sharing.'; }
+  catch { $('#copy-status').textContent = 'Copy unavailable. Select and copy the log text directly.'; }
+});
 $('#audition').addEventListener('click', () => activate(edited, true));
-$('#play-mode').addEventListener('change', () => { $('#live-note').hidden = $('#play-mode').value !== 'generate'; renderPads(); });
-$('#end').addEventListener('click', async () => { $('#allow-generation').checked = false; await omni.end(); sessionStatus('Reactor is off. Local loops remain available.'); });
+$('#play-mode').addEventListener('change', () => { renderPads(); if ($('#play-mode').value === 'generate') { status('Generate variations: pads request a new passage when paid generation is enabled. Arrange pads also has an explicit Generate button and free Check inputs.'); } });
+$('#end').addEventListener('click', async () => { $('#allow-generation').checked = false; activity.add('Connection', 'End Reactor pressed.'); const ended = await omni.end(); sessionStatus(ended ? 'Reactor is off. Local loops remain available.' : 'Disconnect could not be confirmed. Check Reactor session state.'); });
 $('#download-take').addEventListener('click', () => {
   const take = takes.get(edited); if (!take) return;
   const name = `pad-${edited+1}-${take.clipId}`;
@@ -123,10 +172,11 @@ window.addEventListener('pagehide', () => { void omni.end(); });
 setInterval(async () => {
   if (!omni.reactor) return;
   try { const result = await fetch('/api/config', { signal: AbortSignal.timeout(2500) }); if (!result.ok) throw new Error(); }
-  catch { await omni.end(); sessionStatus('Local server stopped; Reactor disconnected.'); }
+  catch { const ended = await omni.end(); sessionStatus(ended ? 'Local server stopped; Reactor disconnected.' : 'Local server stopped; disconnect could not be confirmed. Check Reactor session state.'); }
 }, 5000);
 try { pads = await loadPads(pads); } catch { persistence = false; }
 rebuildOptions(); selectEditor(0);
+activity.add('Local validation', 'App ready · SDK 3.1.0. No Reactor connection made. Saved pad storage unchanged.');
 if (!pads.some(pad => pad.clip || pad.image)) $('#editor').open = true;
 try { const config = await fetch('/api/config').then(r => r.json()); if (!config.configured) sessionStatus('Reactor key not configured. Arrange pads and Play loops are ready to use.'); }
 catch { sessionStatus('Start the local server with npm run dev.'); }

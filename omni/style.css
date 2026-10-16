@@ -81,3 +81,16 @@ textarea { width:100%; resize:vertical; line-height:1.6; }
 .editor-footnote { font-size:11px; line-height:1.6; opacity:.8; }
 @media(max-width:650px) { .editor-grid { grid-template-columns:1fr; gap:10px; } .toolbar { font-size:11px; } .toolbar #end { margin-left:0; } }
 @media(prefers-reduced-motion:reduce) { .orb { animation:none; } }
+
+.generation-controls, #activity { margin:16px 0; padding:14px; border:1px solid #628997; border-radius:10px; background:#f2fbffb8; }
+.generation-controls p, #activity p { font-size:12px; line-height:1.5; }
+#generate-pad { background:#134c62; color:white; }
+#generate-pad:disabled, #check-inputs:disabled { opacity:.55; }
+#input-issues { padding-left:22px; color:#833c21; line-height:1.7; }
+#attempt-status { padding:10px; background:#dfedf3; border-radius:6px; overflow-wrap:anywhere; }
+#attempt-status[data-error=true] { background:#fff0df; color:#743212; border:1px solid #a86b3f; }
+#activity h2 { margin:0; font-size:15px; }
+#activity-log { max-height:300px; overflow:auto; padding:0; list-style:none; font:12px/1.6 ui-monospace,monospace; overflow-wrap:anywhere; }
+#activity-log li { padding:7px; border-bottom:1px solid #bdd0d8; white-space:pre-wrap; }
+#activity-log li[data-level=error] { background:#fff0df; color:#743212; }
+.generation-controls #live-note label { display:flex; align-items:center; gap:8px; margin:0; }

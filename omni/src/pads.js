@@ -4,13 +4,19 @@ export function defaultPads() {
   const worlds = ['Mountain', 'Car', 'Glacier', 'Tree', 'Ocean'];
   return KEYS.map((key, i) => ({ id: i, key, name: worlds[i % 5], group: i < 5 ? 'Scene' : 'Party', prompt: '', seconds: 8, image: null, audio: null, clip: null }));
 }
+export function padIssues(pad) {
+  const issues = [];
+  if (!pad.prompt?.trim()) issues.push('Add a prompt for this pad.');
+  if (!pad.image) issues.push('Choose this pad’s Krea image.');
+  if (!pad.audio) issues.push('Choose this pad’s Daydream audio reference.');
+  if (!DURATIONS.includes(pad.seconds)) issues.push('Choose a supported clip length.');
+  if (pad.image && !['image/jpeg', 'image/png', 'image/webp'].includes(pad.image.type)) issues.push('Use a JPEG, PNG, or WebP image.');
+  for (const kind of ['image', 'audio']) if (pad[kind]?.size > 25 * 1024 * 1024) issues.push(`The ${kind} reference must be 25 MiB or smaller.`);
+  return issues;
+}
 export function validatePad(pad) {
-  if (!pad.prompt?.trim()) throw new Error('Add a prompt for this pad.');
-  if (!pad.image) throw new Error('Choose this pad’s Krea image.');
-  if (!pad.audio) throw new Error('Choose this pad’s Daydream audio reference.');
-  if (!DURATIONS.includes(pad.seconds)) throw new Error('Choose a supported clip length.');
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(pad.image.type)) throw new Error('Use a JPEG, PNG, or WebP image.');
-  for (const file of [pad.image, pad.audio]) if (file.size > 25 * 1024 * 1024) throw new Error('Each reference must be 25 MiB or smaller.');
+  const issues = padIssues(pad);
+  if (issues.length) throw new Error(issues.join(' '));
   return true;
 }
 export function promptFor(pad) {

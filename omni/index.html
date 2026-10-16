@@ -7,7 +7,7 @@
 </head>
 <body>
 <main>
-  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1</span></header>
+  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.1</span></header>
   <div class="toolbar">
     <label>Play mode <select id="play-mode"><option value="loops">Play loops</option><option value="generate">Generate variations</option></select></label>
     <button id="arrange" type="button">Arrange pads</button>
@@ -37,10 +37,7 @@
   </div>
   <footer><p id="status" role="status">Choose Arrange pads to add your clips and references.</p><span class="help">Pads 1–5 · Q–T</span></footer>
   <p id="session-status" role="status">Reactor is off. Play loops uses no generation credits.</p>
-  <div id="live-note" hidden>
-    <label><input id="allow-generation" type="checkbox"> Enable paid generation for this visit.</label>
-    <span>One request at a time. Sessions end after five minutes; this is not a spending cap. A new passage is received before it fades in.</span>
-  </div>
+
   <details id="editor">
     <summary>Arrange the instrument <span id="pad-count"></span></summary>
     <div class="editor-grid">
@@ -59,6 +56,17 @@
         <img id="image-preview" alt="Selected pad image" hidden>
         <label>Direction for this variation <textarea id="pad-prompt" rows="7" placeholder="Your visual and musical direction. Picture 1 and Audio 1 are attached automatically."></textarea></label>
         <label>Generated passage length <select id="pad-seconds"><option>5.875</option><option selected>8</option><option>10.125</option><option>12.25</option><option>14.375</option></select></label>
+        <section class="generation-controls" aria-label="Selected pad generation">
+          <p><strong id="generate-label">Generate selected pad</strong></p>
+          <p>Check inputs reads the image and audio locally, with no credits. Generate uploads these references and requests one new passage; it requires paid generation enabled below.</p>
+          <ul id="input-issues" aria-label="Inputs needing attention"></ul>
+  <div id="live-note">
+    <label><input id="allow-generation" type="checkbox"> Enable paid generation for this visit.</label>
+    <span>One request at a time. Sessions end after five minutes; this is not a spending cap. A new passage is received before it fades in.</span>
+  </div>
+          <div class="actions"><button id="check-inputs" type="button">Check inputs (no credits)</button><button id="generate-pad" type="button">Generate selected pad</button></div>
+          <p id="attempt-status" role="status" tabindex="-1">No generation attempted this visit.</p>
+        </section>
         <div class="actions"><button id="save-pad" type="button">Save pad</button><button id="audition" type="button">Play existing loop</button><button id="download-take" type="button" disabled>Save latest take</button></div>
       </div>
     </div>
@@ -66,6 +74,12 @@
     <div class="actions"><button id="export" type="button">Export prompt settings</button><label class="import-label">Import prompt settings <input id="import" type="file" accept="application/json"></label></div>
     <p class="editor-footnote">Prompt exports list filenames but do not include media. Generated takes stay available for this visit; use Save latest take before closing. This is a local prototype. Live timing, recording boundaries, and loop seams still need a paid test.</p>
   </details>
+  <section id="activity" aria-labelledby="activity-title">
+    <div class="actions"><h2 id="activity-title">Activity log</h2><button id="copy-log" type="button">Copy log</button></div>
+    <p>Timestamped events for this visit, newest first. “Accepted” does not mean generated; captured media still needs local playback. No keys, tokens, reference URLs, or prompt bodies are logged.</p>
+    <ol id="activity-log" role="log" aria-live="polite" aria-relevant="additions"></ol>
+    <p id="copy-status" role="status"></p>
+  </section>
 </main>
 <script type="module" src="/app.js"></script>
 </body>
