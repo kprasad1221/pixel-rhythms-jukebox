@@ -1,3 +1,36 @@
+# Pixel Rhythms · Omni prototype 0.1.8
+
+## Record a pad performance
+
+Play a pad, press **Record**, perform with pads / fades / volume / Pause, press **Stop**, then **Save video**. Recording is entirely local and sends no Reactor request. A timer shows when recording is active; Save becomes available after the browser finishes the video. The downloaded file contains the main pad picture and its mixed audio. It does not contain the interface, meters, or the separate Live Preview.
+
+Output is 1280×720 at a requested 24 fps. The browser selects a supported format, usually WebM (VP8 + Opus) in Chrome/Brave. Both deck images are composited with their actual stacking order and fade opacity; audio is tapped after the master volume. Portrait or 4:3 clips are contained without cropping. Pause holds the picture while recording time continues and the paused deck falls silent.
+
+The latest finished take stays in memory until the page closes or another recording finishes. Save downloads the video; it does not assign it to a pad. Keep this tab visible while recording; background-tab throttling and long recordings have not been validated. Save before refreshing. Existing media assignments and the IndexedDB schema are unchanged.
+
+## Performance layout
+
+Pads show **1–10**, independent of their editable names and current media. Keyboard shortcuts remain 1–5 and Q–T. Volume, fade and Pause now sit beside the main display, with Record and Save video underneath. On narrow screens those controls move below the picture and the volume slider becomes horizontal. The performance area sizes to the viewport; pad setup and the collapsible Activity log remain accessible below. Very short windows may still require scrolling to preserve usable controls.
+
+## Update and first local check
+
+1. End Reactor, then stop the server with Ctrl+C.
+2. From `D:\Projects\reactor-jukebox-git`, run `git pull --ff-only`.
+3. From `D:\Projects\reactor-jukebox-git\omni`, run `npm.cmd run dev`.
+4. Refresh `http://127.0.0.1:8093`; the header should say **0.1.8**.
+5. Play an existing pad; Record; switch to another pad; adjust volume; Stop; Save video. Open the downloaded video and check picture, dissolve and sound.
+
+Live generation still uses its separate preview. Routing that stream into the main performance output is the next increment. No paid test is needed or authorized by this update; SDK 3.1.0 and the existing session safeguards are unchanged.
+
+## Validation
+
+Verified for this checkpoint: 44 offline checks and build pass. A Chromium recording was downloaded and decoded at 1280×720 with VP8 video and stereo Opus audio. Saved-frame samples verified red → blended → blue across the fade. Decoded audio changed from 440 Hz to 880 Hz, fell from about 0.160 RMS to 0.047 after the volume adjustment, became silent while paused, and resumed afterward. All main performance controls fit at 1366×768, 1920×1080, 1024×768, 768×1024 and 390×844. No token or external requests were made. This is an automated local test, not a test on KP’s Windows laptop or a live Reactor recording.
+
+`npm test` runs offline checks; `npm run build` bundles the app. With Playwright and Chromium available, `npm run test:browser` covers the prior free preview / temporary pad clip / download / saved assignment flow. `npm run test:performance` records two known-colored audiovisual loops across a dissolve, volume adjustment and Pause; downloads and samples the saved video; checks viewport fit at laptop, tablet and phone sizes; and verifies no token or external request. Set `PLAYWRIGHT_MODULE_PATH` and `CHROMIUM_PATH` if those tools are installed outside this project. Browser-test artifacts are reported in the test output.
+
+---
+## Historical implementation notes
+
 # Pixel Rhythms · Omni prototype 0.1.7
 
 A ten-pad extension of KP's existing glass Jukebox. Same two playback decks, crossfades, master volume, waveform and stereo meters. Each pad can hold an existing loop, one Krea image, one Daydream reference, and an authored prompt. Musical variation in the generated soundtrack is intentional.

@@ -7,7 +7,8 @@
 </head>
 <body>
 <main>
-  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.7</span></header>
+<div class="instrument">
+  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.8</span></header>
   <div class="toolbar">
     <span>Ten pads · local loop playback</span>
     <button id="arrange" type="button">Arrange pads</button>
@@ -23,21 +24,26 @@
     <aside class="side" aria-label="Live audio feedback">
       <div class="meters inset"><canvas id="meters" aria-label="Left and right audio peak levels"></canvas></div>
       <div class="scope inset"><canvas id="scope" aria-label="Live audio waveform"></canvas></div>
-    </aside>
-  </div>
-  <div class="ribbon inset"><canvas id="ribbon" aria-label="Recent audio amplitude history"></canvas></div>
-  <div class="deck">
-    <nav aria-label="Ten audiovisual pads"><div id="buttons" class="clip-grid"></div></nav>
-    <div class="transport">
+      <div class="transport">
       <label class="volume-label" for="volume">VOLUME</label>
       <div class="fader"><input id="volume" aria-label="Master volume" type="range" min="0" max="1" step="0.01" value="0.8"><span class="ticks" aria-hidden="true"></span></div>
       <output id="volume-value" for="volume">80%</output>
       <div class="transport-bottom"><button id="pause" disabled aria-label="Pause or resume playback">Pause</button><label class="fade"><small>FADE</small><select id="fade-seconds" aria-label="Crossfade duration"><option value="0.5">0.5 s</option><option value="1.5">1.5 s</option><option value="3">3 s</option></select></label></div>
     </div>
+      <div class="record-controls" aria-label="Performance recording">
+        <div class="record-buttons"><button id="record" type="button" aria-pressed="false">● Record</button><button id="save-performance" type="button" disabled>Save video</button></div>
+        <p id="record-status" role="status">Record your pad performance.</p>
+      </div>
+    </aside>
+  </div>
+  <div class="ribbon inset"><canvas id="ribbon" aria-label="Recent audio amplitude history"></canvas></div>
+  <div class="deck">
+    <nav aria-label="Ten audiovisual pads"><div id="buttons" class="clip-grid"></div></nav>
   </div>
   <footer><p id="status" role="status">Choose Arrange pads to add your clips and references.</p><span class="help">Pads 1–5 · Q–T</span></footer>
   <p id="session-status" role="status">Reactor is off. Local loop pads and free tests use no generation credits.</p>
 
+</div>
   <details id="editor">
     <summary>Arrange the instrument <span id="pad-count"></span></summary>
     <div class="editor-grid">
@@ -58,7 +64,7 @@
         <label>Generated passage length <select id="pad-seconds"><option>5.875</option><option selected>8</option><option>10.125</option><option>12.25</option><option>14.375</option></select></label>
         <section class="generation-controls" aria-label="Selected pad generation">
           <p><strong id="generate-label">Generate selected pad</strong></p>
-          <p>Generate unlocks after Show free live pattern verifies this video display. Generate and watch uploads the selected references and displays one live passage here. Recording is disabled in this step; no new pad clip or download is created.</p>
+          <p>Generate unlocks after Show free live pattern verifies this video display. Generate and watch uploads the selected references and displays one live passage here. The main Record button captures local pad playback. This separate live preview is not included yet.</p>
           <ul id="input-issues" aria-label="Inputs needing attention"></ul>
   <div id="live-note">
     <label><input id="allow-generation" type="checkbox"> Enable one paid generation attempt.</label>
@@ -83,14 +89,15 @@
     </div>
     <p id="editor-status" role="status">Names, prompts, and chosen media are saved in this browser on this computer. Keep the original files backed up.</p>
     <div class="actions"><button id="export" type="button">Export prompt settings</button><label class="import-label">Import prompt settings <input id="import" type="file" accept="application/json"></label></div>
-    <p class="editor-footnote">Prompt exports list filenames but do not include media. Temporary takes stay available for this visit; download them before closing. Generate and watch is a live-video check only. It does not record or create a downloadable pad take.</p>
+    <p class="editor-footnote">Prompt exports list filenames but do not include media. Temporary takes stay available for this visit; download them before closing. Generate and watch uses the separate live preview. Record and Save video capture the main pad performance only.</p>
   </details>
-  <section id="activity" aria-labelledby="activity-title">
-    <div class="actions"><h2 id="activity-title">Activity log</h2><button id="copy-log" type="button">Copy log</button></div>
+  <details id="activity">
+    <summary id="activity-title">Activity log</summary>
+    <div class="actions"><button id="copy-log" type="button">Copy log</button></div>
     <p>Timestamped events for this visit, newest first. “Accepted” does not mean generated; decoded frames and displayed frames are logged separately. No keys, tokens, reference URLs, or prompt bodies are logged.</p>
     <ol id="activity-log" role="log" aria-live="polite" aria-relevant="additions"></ol>
     <p id="copy-status" role="status"></p>
-  </section>
+  </details>
 </main>
 <script type="module" src="/app.js"></script>
 </body>

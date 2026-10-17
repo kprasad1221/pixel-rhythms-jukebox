@@ -1,5 +1,5 @@
 export function recordingType() {
-  if (!globalThis.MediaRecorder) throw new Error('This browser cannot capture incoming clips. Try Chrome on the laptop.');
+  if (!globalThis.MediaRecorder) throw new Error('This browser cannot record video. Try Chrome on the laptop.');
   const type = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find(type => MediaRecorder.isTypeSupported(type));
   if (!type) throw new Error('No supported video recording format. Try Chrome on the laptop.');
   return type;

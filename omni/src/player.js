@@ -65,5 +65,17 @@ export function createPlayer(onStatus, onPlaying) {
       try { await unlock(); await videos[active].play(); pause.textContent = 'Pause'; } catch { onStatus('Tap Play again to enable sound.'); }
     } else { videos[active].pause(); pause.textContent = 'Play'; }
   });
-  return { play, unlock, get busy() { return busy; } };
+  async function captureAudio() {
+    await unlock();
+    const destination = context.createMediaStreamDestination();
+    master.connect(destination);
+    return {
+      stream: destination.stream,
+      release() {
+        master.disconnect(destination);
+        destination.stream.getTracks().forEach(track => track.stop());
+      },
+    };
+  }
+  return { play, unlock, captureAudio, videos, get hasMedia() { return active >= 0; }, get busy() { return busy; } };
 }

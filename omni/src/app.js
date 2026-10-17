@@ -1,6 +1,7 @@
 import { defaultPads, validatePad, padIssues, presetText, importPresetText } from './pads.js';
 import { loadPads, savePads } from './store.js';
 import { createPlayer } from './player.js';
+import { createPerformanceRecorder } from './performance-recorder.js';
 import { OmniSession } from './reactor.js';
 import { testBrowserCapture } from './capture.js';
 import { createLivePreview, createPatternStream } from './live-preview.js';
@@ -32,13 +33,36 @@ const takes = new Map();
 const colors = ['54,204,234','166,146,228','72,161,213','88,195,191','211,182,111'];
 const buttons = pads.map((pad, i) => {
   const button = document.createElement('button'); button.type = 'button'; button.className = 'pad'; button.style.setProperty('--pad', colors[i%5]);
-  const name = document.createElement('span'); name.className = 'pad-name';
+  const name = document.createElement('span'); name.className = 'pad-name'; name.textContent = String(i + 1);
   const key = document.createElement('span'); key.className = 'pad-key'; key.textContent = pad.key.toUpperCase();
   const mode = document.createElement('span'); mode.className = 'pad-mode'; button.append(name,key,mode);
   button.addEventListener('click', () => activate(i)); $('#buttons').append(button);
   return button;
 });
 const player = createPlayer(status, id => { activePad = id; renderPads(); });
+const performanceRecorder = createPerformanceRecorder(player, ({ state, take, seconds, message }) => {
+  const recording = state === 'recording';
+  const finalizing = state === 'starting' || state === 'stopping';
+  $('#record').textContent = recording ? '■ Stop' : state === 'starting' ? 'Starting…' : state === 'stopping' ? 'Finishing…' : '● Record';
+  $('#record').setAttribute('aria-pressed', String(recording));
+  $('#record').disabled = finalizing;
+  $('#save-performance').disabled = !take || recording || finalizing;
+  const duration = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+  $('#record-status').textContent = recording ? `Recording · ${duration}` : message;
+  $('#record-status').dataset.error = String(state === 'error');
+  $('#record-status').dataset.state = state;
+}, (stage, message, level) => activity.add(stage, message, level));
+$('#record').addEventListener('click', () => {
+  if (performanceRecorder.state === 'recording') performanceRecorder.stop();
+  else void performanceRecorder.start();
+});
+$('#save-performance').addEventListener('click', () => {
+  const take = performanceRecorder.take; if (!take) return;
+  const extension = take.blob.type.includes('mp4') ? 'mp4' : 'webm';
+  download(take.blob, `pixel-rhythms-performance-${take.createdAt.replace(/[:.]/g, '-')}.${extension}`);
+  performanceRecorder.saved();
+  activity.add('Save', `Performance video download requested (${take.blob.size} bytes). Check your downloads.`);
+});
 const livePreview = createLivePreview($('#live-preview'), report, () => { void omni.end(); });
 const omni = new OmniSession(sessionStatus, report, undefined, {
   onStream: stream => livePreview.attach(stream, `Reactor Pad ${pending + 1}`),
@@ -47,10 +71,10 @@ const omni = new OmniSession(sessionStatus, report, undefined, {
 function renderPads() {
   pads.forEach((pad, i) => {
     const button = buttons[i];
-    button.querySelector('.pad-name').textContent = pad.name;
+    button.querySelector('.pad-name').textContent = String(i + 1);
     button.querySelector('.pad-mode').textContent = pending === i ? 'Preparing' : `${pad.group}${takes.get(i)?.source === 'local-capture-test' ? ' · LOCAL TEST' : takes.has(i) ? ' · new take' : ''}`;
     button.setAttribute('aria-pressed', String(activePad === i));
-    button.setAttribute('aria-label', `${pad.name}, ${pad.group}, key ${pad.key.toUpperCase()}`);
+    button.setAttribute('aria-label', `Pad ${i + 1}, key ${pad.key.toUpperCase()}`);
     button.classList.toggle('pending', pending === i);
     button.disabled = false;
   });
@@ -96,7 +120,7 @@ function openEditor(id) { readEditor(); rebuildOptions(); selectEditor(id); $('#
 function download(blob, name) { const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); }
 async function activate(id, existingOnly = false, explicitGenerate = false) {
   readEditor();
-  const pad = { ...pads[id] }, label = `${pad.name} · ${pad.group}`;
+  const pad = { ...pads[id] }, label = `Pad ${id + 1}`;
   const generate = explicitGenerate;
   if (!generate) {
     const take = existingOnly ? null : takes.get(id);
