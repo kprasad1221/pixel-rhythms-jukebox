@@ -1,3 +1,32 @@
+# Pixel Rhythms · Omni prototype 0.1.9
+
+## One main performance screen
+
+Live video now appears in the main screen. The current local loop continues during connection and generation; the first presented live frame selects the live picture and its audio. A small LIVE badge identifies the source. Live audio uses the same master volume, meters and recording mix as the pads. Record / Stop / Save video now includes both local and live sources in a single performance file.
+
+At the end of a passage, or when the live display fails, the player returns to the current local loop. If no pad was playing, it returns to the empty screen. Pressing a pad cancels the current live attempt, requests Reactor disconnect, and plays that pad. End Reactor also returns to local output. Pause is disabled during a live passage; use a pad or End Reactor to leave live playback. The loop continues its own timing silently underneath live output. Takeover and return are direct source switches; local pad-to-pad crossfades are unchanged.
+
+The former separate preview is removed. Arrange closes when a free check or valid paid attempt starts so the main output stays visible. Assignments, prompts, references, SDK 3.1.0, one-attempt consent, no automatic retries, and session limits are unchanged. A live passage does not automatically become a saved pad clip. Source tracks belong to Reactor or the free-pattern producer; the player releases only its display and audio connections.
+
+## First free check
+
+End Reactor and stop the server with Ctrl+C. From `D:\Projects\reactor-jukebox-git\omni`, run `git pull --ff-only`, then `npm.cmd run dev`. Refresh `http://127.0.0.1:8093` and confirm **0.1.9**.
+
+Play any assigned pad, press Record, open Arrange pads, and click **Show free live pattern** with paid generation unchecked. A three-second moving pattern and soft tone should take over the main screen, then return to the loop. Stop and Save video; check that the file contains all three portions and their sound. You can also press a pad during the pattern to interrupt it.
+
+This check uses the same main-screen stream attachment and audio-mix path as incoming Reactor media. It does not establish actual WebRTC reception, generated timing, or the final received frame boundary. Existing automatic disconnect timing remains unchanged and may cut off late frames. No paid test was performed or authorized by this update.
+
+## Verification for 0.1.9
+
+45 offline checks, build, and both Chromium browser flows pass. A downloaded 720p WebM was decoded and sampled to verify local loop → live pattern → local loop. Its audio changes from the local 880 Hz test tone to the 330 Hz live tone and back, including the master-volume change. The outgoing local tone is absent during the sampled live interval. Pad cancellation, End Reactor, and a simulated video-element error return to local output without stale takeover. The prior pad recording, crossfade, saved-assignment and five-viewport checks still pass. Zero token requests or external requests occurred.
+
+KP separately confirmed that 0.1.8 recording saves a playable WebM on the Windows laptop and that the compact layout is enjoyable to play. The new live path above has been tested with a local MediaStream, not a new paid Reactor run.
+
+`npm test` and `npm run build` run the offline checks and bundle. `npm run test:browser` covers the main-screen free pattern, earlier temporary-pad diagnostic, downloads and assignment persistence. `npm run test:performance` covers performance recording, live-source recording and cancellation, plus viewport fit. Playwright / Chromium can be supplied with `PLAYWRIGHT_MODULE_PATH` and `CHROMIUM_PATH`.
+
+---
+## Historical 0.1.8 checkpoint
+
 # Pixel Rhythms · Omni prototype 0.1.8
 
 ## Record a pad performance

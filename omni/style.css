@@ -97,8 +97,7 @@ textarea { width:100%; resize:vertical; line-height:1.6; }
 
 #capture-test-preview { width:100%; max-height:220px; background:#123f50; margin-top:12px; border-radius:8px; }
 
-#live-preview-area { margin-top:16px; padding:12px; border:2px solid #387c91; border-radius:10px; background:#e6f5fa; }
-#live-preview { width:100%; max-height:420px; background:#123f50; border-radius:8px; }
+.source-badge { position:absolute; z-index:4; top:12px; left:12px; max-width:calc(100% - 24px); padding:6px 10px; border:1px solid #9adce299; border-radius:8px; background:#082d3edb; color:#e4fbff; font-size:10px; letter-spacing:.06em; pointer-events:none; }
 #live-preview-status[data-error=true] { color:#8a3016; background:#fff0df; padding:8px; }
 .recording-diagnostics { margin-top:16px; }
 

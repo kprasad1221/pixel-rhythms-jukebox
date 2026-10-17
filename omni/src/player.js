@@ -1,15 +1,33 @@
 import { installMeters } from './meters.js';
-export function createPlayer(onStatus, onPlaying) {
+import { createLivePreview } from './live-preview.js';
+export function createPlayer(onStatus, onPlaying, log = () => {}, onLiveFailure = () => {}) {
   const videos = [document.querySelector('#output'), document.querySelector('#incoming')];
+  const liveVideo = document.querySelector('#live-preview');
+  const allVideos = [...videos, liveVideo];
+  const sourceBadge = document.querySelector('#output-source');
   const volume = document.querySelector('#volume');
   const pause = document.querySelector('#pause');
-  let context, master, gains, active = -1, busy = false;
+  let context, master, loops, liveGain, liveSource, liveTrack, liveEnded, gains, active = -1, busy = false, liveAttached = false, liveShowing = false;
+  const livePreview = createLivePreview(liveVideo, log, message => {
+    finishLive('Live display failed; returning to pads.'); onLiveFailure(message);
+  }, { onFirstFrame() {
+    liveShowing = true;
+    liveVideo.style.opacity = 1;
+    loops.gain.setValueAtTime(0, context.currentTime);
+    liveGain.gain.setValueAtTime(1, context.currentTime);
+    sourceBadge.hidden = false;
+    document.querySelector('#empty').style.display = 'none';
+    pause.disabled = true; pause.title = 'Live passage playing. Press a pad or End Reactor to return.';
+    onStatus('Live output playing on the main screen. Press a pad to return to local playback.');
+  } });
   const urls = new WeakMap();
   function unlock() {
     if (!context) {
       context = new AudioContext(); master = context.createGain(); master.gain.value = Number(volume.value); master.connect(context.destination);
-      gains = videos.map(video => { const gain = context.createGain(); gain.gain.value = 0; context.createMediaElementSource(video).connect(gain); gain.connect(master); return gain; });
-      installMeters(master, context, videos);
+      loops = context.createGain(); loops.connect(master);
+      liveGain = context.createGain(); liveGain.gain.value = 0; liveGain.connect(master);
+      gains = videos.map(video => { const gain = context.createGain(); gain.gain.value = 0; context.createMediaElementSource(video).connect(gain); gain.connect(loops); return gain; });
+      installMeters(master, context, allVideos);
     }
     return context.resume();
   }
@@ -55,12 +73,12 @@ export function createPlayer(onStatus, onPlaying) {
       throw error;
     } finally {
       clearTimeout(timer); if (errorHandler) video.removeEventListener('error', errorHandler);
-      busy = false; pause.disabled = active < 0;
+      busy = false; pause.disabled = active < 0 || liveShowing;
     }
   }
   volume.addEventListener('input', () => { volume.style.setProperty('--volume', `${Number(volume.value)*100}%`); document.querySelector('#volume-value').textContent = `${Math.round(Number(volume.value)*100)}%`; if (master) master.gain.setTargetAtTime(Number(volume.value), context.currentTime, .02); });
   pause.addEventListener('click', async () => {
-    if (busy || active < 0) return;
+    if (busy || active < 0 || liveShowing) return;
     if (videos[active].paused) {
       try { await unlock(); await videos[active].play(); pause.textContent = 'Pause'; } catch { onStatus('Tap Play again to enable sound.'); }
     } else { videos[active].pause(); pause.textContent = 'Play'; }
@@ -77,5 +95,40 @@ export function createPlayer(onStatus, onPlaying) {
       },
     };
   }
-  return { play, unlock, captureAudio, videos, get hasMedia() { return active >= 0; }, get busy() { return busy; } };
+  function attachLive(stream, label) {
+    if (!context || context.state !== 'running') throw new Error('Tap again to enable the main audio output.');
+    if (!liveVideo.requestVideoFrameCallback) throw new Error('This browser cannot verify live video frames. Use current Chrome or Brave on the laptop.');
+    finishLive('Replacing live source.');
+    liveAttached = true;
+    liveVideo.style.opacity = 0; liveVideo.style.zIndex = 3;
+    sourceBadge.textContent = `LIVE · ${label}`;
+    try {
+      if (stream.getAudioTracks().length) {
+        liveSource = context.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+        liveSource.connect(liveGain);
+      }
+      liveTrack = stream.getVideoTracks()[0];
+      liveEnded = () => finishLive('Live stream ended; returned to pads.');
+      liveTrack?.addEventListener('ended', liveEnded, { once: true });
+      livePreview.attach(stream, label);
+    } catch (error) { finishLive('Live attachment failed; returned to pads.'); throw error; }
+  }
+  function finishLive(reason) {
+    const frames = livePreview.finish(reason);
+    if (!liveAttached) return frames;
+    liveAttached = false; liveShowing = false;
+    liveTrack?.removeEventListener('ended', liveEnded); liveTrack = null;
+    liveSource?.disconnect(); liveSource = null;
+    liveVideo.style.opacity = 0; sourceBadge.hidden = true;
+    if (context) { liveGain.gain.setValueAtTime(0, context.currentTime); loops.gain.setValueAtTime(1, context.currentTime); }
+    document.querySelector('#empty').style.display = active < 0 ? '' : 'none';
+    pause.disabled = active < 0 || busy; pause.title = '';
+    pause.textContent = active >= 0 && videos[active].paused ? 'Play' : 'Pause';
+    onStatus(active >= 0 ? 'Returned to local pad playback.' : 'Live passage ended. Choose a pad to play.');
+    return frames;
+  }
+  function resetLive() { finishLive('Preparing another passage.'); livePreview.reset(); }
+  return { play, unlock, captureAudio, attachLive, finishLive, resetLive, videos: allVideos,
+    get liveFrames() { return livePreview.frames; }, get liveActive() { return liveAttached; },
+    get hasMedia() { return active >= 0 || liveShowing; }, get busy() { return busy; } };
 }

@@ -44,3 +44,13 @@ test('video element error is reported and requests cleanup',()=>{
  f.video.dispatchEvent(new Event('error'));
  assert.match(f.failures[0],/Decoder failed/);f.preview.finish('Cleanup');
 });
+test('first-frame callback selects live once; finish detaches without stopping source tracks',()=>{
+ let selected=0,stopped=0;
+ const f=fixture(), stream={getTracks:()=>[{stop(){stopped++;}}]};
+ const preview=createLivePreview(f.video,()=>{},()=>{}, {onFirstFrame(){selected++;}});
+ preview.attach(stream,'Main output');
+ assert.equal(selected,0);
+ f.frame();f.frame();assert.equal(selected,1);
+ assert.equal(preview.finish('Complete'),2);assert.equal(preview.finish('Cleanup'),2);
+ assert.equal(f.video.srcObject,null);assert.equal(f.video.hidden,true);assert.equal(stopped,0);
+});

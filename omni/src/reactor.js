@@ -53,8 +53,8 @@ export class OmniSession {
       const id = message?.data?.clip?.clip_id;
       if (message.type === 'clip_generated') this.log('Generation', `clip_generated received for ${id}; ready for stream reception.`);
       if (message.type === 'clip_failed') this.log('Generation', `clip_failed for ${id}: ${message.data.reason || 'No reason provided.'}`, 'error');
-      if (message.type === 'clip_started') this.log('Reception', `clip_started for ${id}; Reactor is sending the passage. The live preview should now receive media; displayed frames are logged separately.`);
-      if (message.type === 'clip_finished') this.log('Reception', `clip_finished for ${id}; Reactor reports media sent. Ending this single live-preview passage.`);
+      if (message.type === 'clip_started') this.log('Reception', `clip_started for ${id}; Reactor is sending the passage to the main output. Displayed frames are logged separately.`);
+      if (message.type === 'clip_finished') this.log('Reception', `clip_finished for ${id}; Reactor reports media sent. Ending this single live passage.`);
     });
     reactor.on('trackReceived', (name, track) => {
       this.tracks.set(name, track);
@@ -125,7 +125,7 @@ export class OmniSession {
         }),
       ]);
       clearTimeout(deadline);
-      this.log('Connection', 'Live passage finished; terminating Reactor. No recording was requested.');
+      this.log('Connection', 'Live passage finished; terminating Reactor. Performance recording is independent of this session.');
       await this.end();
       return take;
     } catch (error) {
@@ -178,7 +178,7 @@ export class OmniSession {
       onPhase('Receiving passage');
       const media = new MediaStream([this.tracks.get('main_video'), this.tracks.get('main_audio')]);
       this.phase = 'Live preview';
-      this.log('Live preview', 'Attaching incoming tracks directly to the visible video element. Recording is disabled.');
+      this.log('Live preview', 'Attaching incoming tracks to the main performance output. Optional Record captures that output independently.');
       this.onStream(media);
       assertCurrent();
       await this.logIncomingMedia('Before Reactor play'); assertCurrent();

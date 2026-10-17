@@ -94,6 +94,59 @@ try {
   assert.ok(samples.samples[0][0] > 190 && samples.samples[0][2] < 80, JSON.stringify(samples));
   assert.ok(samples.samples[1][0] > 60 && samples.samples[1][2] > 70, JSON.stringify(samples));
   assert.ok(samples.samples[2][2] > 190 && samples.samples[2][0] < 80, JSON.stringify(samples));
+  // Record the real UI's stream attachment path, using only the free pattern.
+  await page.locator('#record').click();
+  await page.waitForFunction(() => document.querySelector('#record-status').dataset.state === 'recording');
+  const recordingStart = await page.evaluate(() => performance.now());
+  await page.waitForTimeout(500);
+  await page.locator('#editor').evaluate(element => element.open = true);
+  await page.locator('#test-live').click();
+  await page.waitForFunction(() => Number(document.querySelector('#live-preview').dataset.frames) > 10);
+  const liveStart = (await page.evaluate(() => performance.now()) - recordingStart) / 1000;
+  assert.equal(await page.locator('#output-source').isVisible(), true);
+  assert.equal(await page.locator('#pause').isDisabled(), true);
+  assert.equal(await page.locator('#editor').evaluate(element => element.open), false);
+  assert.equal(await page.locator('.stage #live-preview').count(), 1);
+  await page.locator('#volume').fill('0.1');
+  await page.screenshot({ path: join(artifacts, 'live-main-output.png') });
+  await page.waitForFunction(() => document.querySelector('#output-source').hidden && !document.querySelector('#test-live').disabled);
+  const liveEnd = (await page.evaluate(() => performance.now()) - recordingStart) / 1000;
+  await page.waitForTimeout(600);
+  await page.locator('#record').click();
+  await page.waitForFunction(() => document.querySelector('#record-status').dataset.state === 'ready');
+  const liveDownloadEvent = page.waitForEvent('download');
+  await page.locator('#save-performance').click();
+  const liveDownload = await liveDownloadEvent;
+  await liveDownload.saveAs(join(artifacts, 'live-performance.webm'));
+  const liveBytes = readFileSync(join(artifacts, 'live-performance.webm'));
+  const liveSamples = await page.evaluate(async ({ data, times }) => {
+    const video = document.createElement('video'); video.muted = true; video.playsInline = true;
+    video.src = URL.createObjectURL(new Blob([new Uint8Array(data)], { type:'video/webm' })); document.body.append(video);
+    await video.play(); video.pause();
+    const canvas = document.createElement('canvas'); canvas.width=1280; canvas.height=720;
+    const ctx=canvas.getContext('2d'), pixels=[];
+    for (const time of times) {
+      await new Promise(resolve => { video.onseeked=resolve; video.currentTime=time; });
+      ctx.drawImage(video,0,0);pixels.push(Array.from(ctx.getImageData(5,5,1,1).data));
+    }
+    video.remove();URL.revokeObjectURL(video.src);return pixels;
+  }, { data:Array.from(liveBytes), times:[.2,(liveStart+liveEnd)/2,liveEnd+.25] });
+  assert.ok(liveSamples[0][2]>190 && liveSamples[0][0]<80,JSON.stringify(liveSamples));
+  for (const [i,value] of [18,63,80].entries()) assert.ok(Math.abs(liveSamples[1][i]-value)<10,JSON.stringify(liveSamples));
+  assert.ok(liveSamples[2][2]>190 && liveSamples[2][0]<80,JSON.stringify(liveSamples));
+  // A pad press and End Reactor must both return to local output, with no stale takeover.
+  for (const action of ['pad','end','video-error']) {
+    await page.locator('#editor').evaluate(element => element.open = true);
+    await page.locator('#test-live').click();
+    await page.waitForFunction(() => Number(document.querySelector('#live-preview').dataset.frames)>10);
+    if (action==='pad') await page.locator('.pad').first().click();
+    if (action==='end') await page.locator('#end').click();
+    if (action==='video-error') await page.locator('#live-preview').evaluate(video=>video.dispatchEvent(new Event('error')));
+    await page.waitForFunction(() => document.querySelector('#output-source').hidden && !document.querySelector('#test-live').disabled);
+    assert.equal(await page.locator('#live-preview').evaluate(video=>video.srcObject),null);
+    assert.equal(await page.locator('.pad').first().getAttribute('aria-pressed'),'true');
+    assert.equal(await page.locator('#pause').isDisabled(),false);
+  }
   const layouts = [];
   for (const [width, height] of [[1366,768],[1920,1080],[1024,768],[768,1024],[390,844]]) {
     await page.setViewportSize({ width, height });
@@ -115,7 +168,7 @@ try {
   await page.locator('#editor').evaluate(element => element.open = true);
   assert.equal(await page.locator('#clip-name').innerText(), 'loop-0.webm');
   assert.deepEqual(errors, []); assert.equal(tokens.length, 0); assert.equal(external.length, 0);
-  console.log(JSON.stringify({ artifacts, downloadBytes:bytes.length, ...samples, layouts, assignmentsRetained:true, tokens:tokens.length, external:external.length, errors }));
+  console.log(JSON.stringify({ artifacts, downloadBytes:bytes.length, ...samples, liveDownloadBytes:liveBytes.length, liveSamples, liveStart, liveEnd, liveCancellation:['pad','end','video-error'], layouts, assignmentsRetained:true, tokens:tokens.length, external:external.length, errors }));
 } finally {
   await browser?.close(); server.close(); server.closeAllConnections();
 }

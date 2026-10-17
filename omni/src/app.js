@@ -4,7 +4,7 @@ import { createPlayer } from './player.js';
 import { createPerformanceRecorder } from './performance-recorder.js';
 import { OmniSession } from './reactor.js';
 import { testBrowserCapture } from './capture.js';
-import { createLivePreview, createPatternStream } from './live-preview.js';
+import { createPatternStream } from './live-preview.js';
 import { createActivity, safeLogText } from './activity.js';
 
 const $ = selector => document.querySelector(selector);
@@ -29,6 +29,7 @@ function renderInputs() {
 
 let pads = defaultPads(), edited = 0, activePad = -1, pending = null, imagePreviewURL = null;
 let persistence = true, liveDisplayChecked = false;
+let liveAction = 0, liveWork = false, activePattern = null;
 const takes = new Map();
 const colors = ['54,204,234','166,146,228','72,161,213','88,195,191','211,182,111'];
 const buttons = pads.map((pad, i) => {
@@ -39,7 +40,9 @@ const buttons = pads.map((pad, i) => {
   button.addEventListener('click', () => activate(i)); $('#buttons').append(button);
   return button;
 });
-const player = createPlayer(status, id => { activePad = id; renderPads(); });
+const player = createPlayer(status, id => { activePad = id; renderPads(); }, report, () => {
+  void stopLive('Live output stopped after a display error.').then(ended => sessionStatus(ended ? 'Reactor is off. Local playback is available.' : 'Disconnect could not be confirmed. Check Reactor session state.'));
+});
 const performanceRecorder = createPerformanceRecorder(player, ({ state, take, seconds, message }) => {
   const recording = state === 'recording';
   const finalizing = state === 'starting' || state === 'stopping';
@@ -63,10 +66,16 @@ $('#save-performance').addEventListener('click', () => {
   performanceRecorder.saved();
   activity.add('Save', `Performance video download requested (${take.blob.size} bytes). Check your downloads.`);
 });
-const livePreview = createLivePreview($('#live-preview'), report, () => { void omni.end(); });
 const omni = new OmniSession(sessionStatus, report, undefined, {
-  onStream: stream => livePreview.attach(stream, `Reactor Pad ${pending + 1}`),
+  onStream: stream => player.attachLive(stream, `Reactor Pad ${pending + 1}`),
 });
+function showMainOutput() { $('#editor').open = false; window.scrollTo({ top: 0, behavior: 'auto' }); }
+async function stopLive(reason) {
+  liveAction++;
+  player.finishLive(reason); activePattern?.stop(); activePattern = null;
+  activity.add('Main output', reason);
+  return omni.end();
+}
 
 function renderPads() {
   pads.forEach((pad, i) => {
@@ -127,6 +136,7 @@ async function activate(id, existingOnly = false, explicitGenerate = false) {
     const media = existingOnly ? pad.clip : (take?.blob || pad.clip);
     const playbackLabel = take?.source === 'local-capture-test' ? `${label} · LOCAL TEST` : take ? `${label} · new take` : `${label} · original loop`;
     if (!media) { openEditor(id); status(`Choose an existing loop for ${label}, or prepare its generation references.`); return; }
+    if (liveWork || player.liveActive) await stopLive('Pad pressed; returning to local playback and ending the live attempt.');
     activity.add('Playback', `Loading pad ${id+1} · ${playbackLabel}.`);
     try { await player.play(media, playbackLabel, id); activity.add('Playback', `Pad ${id+1}${take?.source === 'local-capture-test' ? ' LOCAL TEST' : ''} playing locally; fade completed.`); }
     catch (error) { status(error.message); activity.add('Playback', error.message, 'error'); }
@@ -146,17 +156,21 @@ async function activate(id, existingOnly = false, explicitGenerate = false) {
     $('#attempt-status').focus({ preventScroll: true }); $('#attempt-status').scrollIntoView({ block: 'nearest' }); return;
   }
   $('#allow-generation').checked = false; // Consent applies to this attempt only.
+  const action = ++liveAction; liveWork = true;
   pending = id; renderPads(); $('#working').hidden = false; $('#working-label').textContent = `Preparing ${pad.name}`;
   try {
-    livePreview.reset();
-    $('#live-preview-status').textContent = 'Preparing one live passage. Video will appear here as it arrives. Recording is disabled.';
-    $('#live-preview-area').scrollIntoView({ block: 'center', behavior: 'auto' });
-    await omni.generate(pad, phase => { $('#working-label').textContent = `${phase} · ${pad.name}`; sessionStatus(`${phase} · ${pad.name}`); $('#live-preview-status').textContent = `${phase} · ${pad.name}. Recording disabled.`; });
-    const frames = livePreview.finish('Reactor passage ended.');
-    report('Live preview', frames ? `Live test ended after ${frames} displayed frame callbacks. No new pad take or download was created.` : 'The session ended without a displayed-frame callback. Live playback is not verified.');
-    sessionStatus(omni.disconnectUnconfirmed ? 'Termination could not be confirmed. Check Reactor session state.' : 'Reactor disconnected. Live-preview test ended; pad assignments retained.');
-  } catch (error) { report('Attempt stopped', `${error.message} Current local clip retained. See the preceding stage for where it stopped.`, 'error'); sessionStatus(omni.disconnectUnconfirmed ? 'Disconnect could not be confirmed. Check Reactor session state.' : omni.reactor ? 'Reactor is still connected. Use End Reactor.' : 'Reactor is off.'); }
-  finally { livePreview.finish('Attempt cleanup completed.'); pending = null; $('#working').hidden = true; renderPads(); }
+    await player.unlock();
+    if (action !== liveAction) return;
+    player.resetLive(); showMainOutput();
+    $('#live-preview-status').textContent = 'Preparing a live passage for the main screen. Your current loop keeps playing.';
+    await omni.generate(pad, phase => { $('#working-label').textContent = `${phase} · Pad ${id + 1}`; sessionStatus(`${phase} · Pad ${id + 1}`); $('#live-preview-status').textContent = `${phase} · Pad ${id + 1}. Live output uses the main screen and optional performance recorder.`; });
+    if (action !== liveAction) return;
+    const frames = player.finishLive('Reactor passage ended.');
+    report('Live preview', frames ? `Live passage displayed ${frames} frame callbacks on the main screen. Returned to pads. Use Record and Save video to keep a performance.` : 'The session ended without a displayed-frame callback. Live playback is not verified.');
+    sessionStatus(omni.disconnectUnconfirmed ? 'Termination could not be confirmed. Check Reactor session state.' : 'Reactor disconnected. Local pad playback is available.');
+  } catch (error) {
+    if (action === liveAction) { report('Attempt stopped', `${error.message} Local playback retained. See the preceding stage for where it stopped.`, 'error'); sessionStatus(omni.disconnectUnconfirmed ? 'Disconnect could not be confirmed. Check Reactor session state.' : omni.reactor ? 'Reactor is still connected. Use End Reactor.' : 'Reactor is off.'); }
+  } finally { player.finishLive('Attempt cleanup completed.'); liveWork = false; pending = null; $('#working').hidden = true; renderPads(); }
 }
 
 $('#arrange').addEventListener('click', () => { $('#editor').open = !$('#editor').open; if ($('#editor').open) $('#editor').scrollIntoView({ block: 'nearest' }); });
@@ -196,18 +210,26 @@ $('#test-live').addEventListener('click', async () => {
   if (omni.reactor || omni.disconnectUnconfirmed) { report('Live preview', 'End Reactor and confirm its session is closed before the free test.', 'error'); return; }
   $('#allow-generation').checked = false;
   attemptContext = `Free live check ${++attemptNumber}`;
+  const action = ++liveAction; liveWork = true;
   pending = edited; renderPads();
   let pattern;
   try {
-    pattern = createPatternStream();
-    livePreview.attach(pattern.stream, 'FREE LIVE PATTERN');
+    await player.unlock();
+    if (action !== liveAction) return;
+    player.resetLive();
+    pattern = activePattern = createPatternStream({ withAudio: true });
+    await pattern.ready;
+    if (action !== liveAction) return;
+    showMainOutput();
+    player.attachLive(pattern.stream, 'FREE LIVE PATTERN');
     await new Promise(resolve => setTimeout(resolve, 3000));
-    if (!livePreview.frames) throw new Error('No pattern frame was displayed. Do not enable generation.');
+    if (action !== liveAction) return;
+    if (!player.liveFrames) throw new Error('No pattern frame was displayed. Do not enable generation.');
     liveDisplayChecked = true;
-    const frames = livePreview.finish('Three-second free pattern finished.');
-    report('Live preview', `FREE LIVE PATTERN displayed ${frames} frame callbacks. No Reactor connection, recording, or upload was made.`);
-  } catch (error) { report('Live preview', error.message, 'error'); }
-  finally { pattern?.stop(); livePreview.finish('Free test cleanup completed.'); pending = null; renderPads(); }
+    const frames = player.finishLive('Three-second free pattern finished.');
+    report('Live preview', `FREE LIVE PATTERN displayed ${frames} frame callbacks on the main screen with a soft tone. Returned to pads. No Reactor connection or upload was made.`);
+  } catch (error) { if (action === liveAction) report('Live preview', error.message, 'error'); }
+  finally { pattern?.stop(); if (activePattern === pattern) activePattern = null; player.finishLive('Free test cleanup completed.'); liveWork = false; pending = null; renderPads(); }
 });
 $('#generate-pad').addEventListener('click', () => activate(edited, false, true));
 $('#check-inputs').addEventListener('click', async () => {
@@ -226,7 +248,7 @@ $('#copy-log').addEventListener('click', async () => {
   catch { $('#copy-status').textContent = 'Copy unavailable. Select and copy the log text directly.'; }
 });
 $('#audition').addEventListener('click', () => activate(edited, true));
-$('#end').addEventListener('click', async () => { $('#allow-generation').checked = false; activity.add('Connection', 'End Reactor pressed.'); const ended = await omni.end(); sessionStatus(ended ? 'Reactor is off. Local loops remain available.' : 'Disconnect could not be confirmed. Check Reactor session state.'); });
+$('#end').addEventListener('click', async () => { $('#allow-generation').checked = false; const ended = await stopLive('End Reactor pressed; returned to local output.'); sessionStatus(ended ? 'Reactor is off. Local loops remain available.' : 'Disconnect could not be confirmed. Check Reactor session state.'); });
 $('#download-take').addEventListener('click', () => {
   const take = takes.get(edited); if (!take) return;
   const name = `pad-${edited+1}-${take.clipId}`;
@@ -250,13 +272,13 @@ document.addEventListener('keydown', event => {
   const id = pads.findIndex(pad => pad.key === event.key.toLowerCase());
   if (id >= 0) { event.preventDefault(); void activate(id); }
 });
-window.addEventListener('pagehide', () => { void omni.end(); });
+window.addEventListener('pagehide', () => { void stopLive('Page closing.'); });
 // If the local server disappears, close the hosted session too. Do not assume
 // Ctrl+C automatically closes an independent browser-to-Reactor connection.
 setInterval(async () => {
   if (!omni.reactor) return;
   try { const result = await fetch('/api/config', { signal: AbortSignal.timeout(2500) }); if (!result.ok) throw new Error(); }
-  catch { const ended = await omni.end(); sessionStatus(ended ? 'Local server stopped; Reactor disconnected.' : 'Local server stopped; disconnect could not be confirmed. Check Reactor session state.'); }
+  catch { const ended = await stopLive('Local server stopped; returned to local output.'); sessionStatus(ended ? 'Local server stopped; Reactor disconnected.' : 'Local server stopped; disconnect could not be confirmed. Check Reactor session state.'); }
 }, 5000);
 try { pads = await loadPads(pads); } catch { persistence = false; }
 rebuildOptions(); selectEditor(0);

@@ -62,14 +62,14 @@ export function createPerformanceRecorder(player, onState, log) {
         if (error || !blob.size) { fail(error || 'The recording contains no video data. Your previous take is still available.'); return; }
         take = { blob, seconds, createdAt: new Date().toISOString() };
         state = 'ready'; update('Take ready. Save your video before closing.');
-        log('Performance recording', `Take ready: ${seconds.toFixed(1)} seconds, ${blob.size} bytes. Includes pad video, crossfades and master audio.`);
+        log('Performance recording', `Take ready: ${seconds.toFixed(1)} seconds, ${blob.size} bytes. Includes main video, source changes, crossfades and master audio.`);
       };
       current.start(1000); started = performance.now(); state = 'recording';
       paintTimer = setInterval(() => {
         try { draw(); } catch (problem) { error = `Could not draw the performance: ${problem.message}`; stop(); }
       }, 1000 / 24);
-      clockTimer = setInterval(() => update('Recording your pad performance.'), 250);
-      update('Recording your pad performance.');
+      clockTimer = setInterval(() => update('Recording your performance.'), 250);
+      update('Recording your performance.');
       log('Performance recording', `Recording started at 1280×720 / 24 fps (${mimeType}). No Reactor request made.`);
     } catch (problem) { fail(problem.message); }
   }

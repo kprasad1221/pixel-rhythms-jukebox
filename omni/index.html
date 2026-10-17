@@ -8,7 +8,7 @@
 <body>
 <main>
 <div class="instrument">
-  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.8</span></header>
+  <header><h1>PIXEL RHYTHMS</h1><span class="edition">OMNI PLAYGROUND · 0.1.9</span></header>
   <div class="toolbar">
     <span>Ten pads · local loop playback</span>
     <button id="arrange" type="button">Arrange pads</button>
@@ -19,6 +19,8 @@
       <div class="empty" id="empty"><strong>A world at your fingertips.</strong><span>Arrange your ten pads, then play.</span></div>
       <video id="output" loop playsinline preload="auto" aria-label="Audiovisual loop A"></video>
       <video id="incoming" loop playsinline preload="auto" aria-label="Audiovisual loop B"></video>
+      <video id="live-preview" muted playsinline hidden aria-label="Live video on the main performance screen"></video>
+      <span id="output-source" class="source-badge" role="status" hidden>LIVE</span>
       <div id="working" role="status" hidden><span class="orb"></span><span id="working-label"></span></div>
     </div>
     <aside class="side" aria-label="Live audio feedback">
@@ -32,7 +34,7 @@
     </div>
       <div class="record-controls" aria-label="Performance recording">
         <div class="record-buttons"><button id="record" type="button" aria-pressed="false">● Record</button><button id="save-performance" type="button" disabled>Save video</button></div>
-        <p id="record-status" role="status">Record your pad performance.</p>
+        <p id="record-status" role="status">Record your performance.</p>
       </div>
     </aside>
   </div>
@@ -64,18 +66,14 @@
         <label>Generated passage length <select id="pad-seconds"><option>5.875</option><option selected>8</option><option>10.125</option><option>12.25</option><option>14.375</option></select></label>
         <section class="generation-controls" aria-label="Selected pad generation">
           <p><strong id="generate-label">Generate selected pad</strong></p>
-          <p>Generate unlocks after Show free live pattern verifies this video display. Generate and watch uploads the selected references and displays one live passage here. The main Record button captures local pad playback. This separate live preview is not included yet.</p>
+          <p>Show free live pattern sends a three-second moving pattern and soft tone to the main screen, then returns to your loop. Generate and watch uses that same output for one live passage. Record and Save video capture the main performance, including live output. Press a pad or End Reactor to return to local playback.</p>
           <ul id="input-issues" aria-label="Inputs needing attention"></ul>
   <div id="live-note">
     <label><input id="allow-generation" type="checkbox"> Enable one paid generation attempt.</label>
     <span>One request at a time. Tokens request a server-side 30-second session limit; the local attempt times out after 25 seconds. The app disconnects when the live passage finishes or the attempt stops. The checkbox resets after each attempt. Server enforcement and the final charge are not yet verified.</span>
   </div>
           <div class="actions"><button id="check-inputs" type="button">Check inputs (no credits)</button><button id="test-live" type="button">Show free live pattern</button><button id="generate-pad" type="button">Generate and watch one clip</button></div>
-          <div id="live-preview-area">
-            <p><strong>LIVE PREVIEW</strong> · starts muted; use the video controls for sound.</p>
-            <video id="live-preview" controls muted playsinline hidden aria-label="Live stream preview"></video>
-            <p id="live-preview-status" role="status">No live stream displayed yet. Show the free pattern first.</p>
-          </div>
+          <p id="live-preview-status" role="status">Live video uses the main performance screen. Show the free pattern first.</p>
           <details class="recording-diagnostics"><summary>Earlier local recording test</summary>
             <p>This separate free test records a synthetic pattern and tone for pad playback and download. It does not test incoming Reactor media.</p>
             <button id="test-capture" type="button">Create free test clip for selected pad</button>
@@ -89,7 +87,7 @@
     </div>
     <p id="editor-status" role="status">Names, prompts, and chosen media are saved in this browser on this computer. Keep the original files backed up.</p>
     <div class="actions"><button id="export" type="button">Export prompt settings</button><label class="import-label">Import prompt settings <input id="import" type="file" accept="application/json"></label></div>
-    <p class="editor-footnote">Prompt exports list filenames but do not include media. Temporary takes stay available for this visit; download them before closing. Generate and watch uses the separate live preview. Record and Save video capture the main pad performance only.</p>
+    <p class="editor-footnote">Prompt exports list filenames but do not include media. Temporary takes stay available for this visit; download them before closing. Record and Save video capture the main performance. Live passages do not automatically become pad clips.</p>
   </details>
   <details id="activity">
     <summary id="activity-title">Activity log</summary>

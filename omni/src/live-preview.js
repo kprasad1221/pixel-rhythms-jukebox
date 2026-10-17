@@ -1,6 +1,6 @@
 // A visible MediaStream sink. This path does not construct a MediaRecorder.
-export function createLivePreview(video, log, onFailure = () => {}) {
-  let frameCount = 0, frameCallback, firstFrameTimer, label = '', running = false, generation = 0;
+export function createLivePreview(video, log, onFailure = () => {}, { onFirstFrame = () => {} } = {}) {
+  let frameCount = 0, frameCallback, firstFrameTimer, label = '', running = false, attached = false, generation = 0;
   function clear() {
     running = false; generation++;
     clearTimeout(firstFrameTimer);
@@ -13,25 +13,26 @@ export function createLivePreview(video, log, onFailure = () => {}) {
   }
   video.addEventListener('error', () => fail(`Video element error: ${video.error?.message || video.error?.code || 'unknown'}.`));
   function reset() {
-    clear(); frameCount = 0; label = '';
+    clear(); frameCount = 0; label = ''; attached = false;
     video.pause(); video.srcObject = null; video.poster = '';
     video.dataset.frames = '0'; video.hidden = true; video.load?.();
   }
   function attach(stream, name) {
     reset();
-    label = name; running = true;
+    label = name; running = true; attached = true;
     const epoch = generation;
     video.dataset.frames = '0'; video.hidden = false;
-    video.muted = true; video.playsInline = true; video.controls = true;
+    video.muted = true; video.playsInline = true; video.controls = false;
     video.poster = '';
     video.srcObject = stream;
-    log('Live preview', `${label}: stream attached directly; video starts muted. Recording disabled.`);
+    log('Live preview', `${label}: attached to the main screen; waiting for a video frame. Audio uses the master mix.`);
     const frame = () => {
       if (!running || epoch !== generation) return;
       frameCount++; video.dataset.frames = String(frameCount);
       if (frameCount === 1) {
         clearTimeout(firstFrameTimer);
         log('Live preview', `${label}: FIRST VIDEO FRAME DISPLAYED (${video.videoWidth}×${video.videoHeight}). This verifies display, not saving.`);
+        try { onFirstFrame(); } catch (error) { fail(error.message); return; }
       }
       frameCallback = video.requestVideoFrameCallback?.(frame);
     };
@@ -47,25 +48,17 @@ export function createLivePreview(video, log, onFailure = () => {}) {
     });
   }
   function finish(reason) {
+    if (!attached) return frameCount;
+    attached = false;
     clear();
-    // Keep the last visible frame for review after the live tracks end.
-    // This is a display snapshot, not a recorded clip or downloadable take.
-    if (frameCount && video.videoWidth && globalThis.document && video.srcObject) {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        video.poster = canvas.toDataURL('image/png');
-        video.pause(); video.srcObject = null; video.load();
-      } catch { /* Failure to retain a still must not block session cleanup. */ }
-    }
-    log('Preview summary', `${label || 'Preview'}: ${reason} Displayed frame callbacks: ${frameCount}. No recorded take was created.`);
+    video.pause(); video.srcObject = null; video.hidden = true; video.load?.();
+    log('Preview summary', `${label || 'Live output'}: ${reason} Displayed frame callbacks: ${frameCount}. Performance recording is a separate user action.`);
     return frameCount;
   }
   return { attach, finish, reset, get frames() { return frameCount; } };
 }
 
-export function createPatternStream() {
+export function createPatternStream({ withAudio = false } = {}) {
   const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
   const drawing = canvas.getContext('2d');
   if (!drawing || !canvas.captureStream) throw new Error('Canvas live streams are unavailable in this browser.');
@@ -78,5 +71,18 @@ export function createPatternStream() {
     drawing.fillText(`Frame ${tick}`, 245, 320);
   };
   draw(); const stream = canvas.captureStream(24), timer = setInterval(draw, 1000/24);
-  return { stream, stop() { clearInterval(timer); stream.getTracks().forEach(track => track.stop()); } };
+  let audio, oscillator;
+  if (withAudio) {
+    audio = new AudioContext();
+    const destination = audio.createMediaStreamDestination(), gain = audio.createGain();
+    oscillator = audio.createOscillator(); oscillator.frequency.value = 330;
+    gain.gain.value = .04; oscillator.connect(gain); gain.connect(destination);
+    stream.addTrack(destination.stream.getAudioTracks()[0]); oscillator.start();
+  }
+  let stopped = false;
+  return { stream, ready: audio?.resume() ?? Promise.resolve(), stop() {
+    if (stopped) return; stopped = true;
+    clearInterval(timer); oscillator?.stop(); stream.getTracks().forEach(track => track.stop());
+    void audio?.close();
+  } };
 }
