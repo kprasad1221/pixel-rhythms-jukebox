@@ -31,6 +31,7 @@ let pads = defaultPads(), edited = 0, activePad = -1, pending = null, imagePrevi
 let persistence = true, liveDisplayChecked = false;
 let liveAction = 0, liveWork = false, activePattern = null;
 const takes = new Map();
+const padFlashTimers = new Map();
 const colors = ['54,204,234','166,146,228','72,161,213','88,195,191','211,182,111'];
 const buttons = pads.map((pad, i) => {
   const button = document.createElement('button'); button.type = 'button'; button.className = 'pad'; button.style.setProperty('--pad', colors[i%5]);
@@ -110,7 +111,7 @@ function selectEditor(id) {
   renderPads(); renderInputs();
 }
 function rebuildOptions() {
-  $('#edit-pad').replaceChildren(...pads.map(pad => { const option = document.createElement('option'); option.value = String(pad.id); option.textContent = `${pad.key.toUpperCase()} · ${pad.name} · ${pad.group}`; return option; }));
+  $('#edit-pad').replaceChildren(...pads.map((pad, i) => { const option = document.createElement('option'); option.value = String(pad.id); option.textContent = `Pad ${i + 1}`; return option; }));
   $('#edit-pad').value = String(edited);
 }
 function readEditor() {
@@ -127,7 +128,16 @@ async function save() {
 }
 function openEditor(id) { readEditor(); rebuildOptions(); selectEditor(id); $('#editor').open = true; $('#editor').scrollIntoView({ block: 'nearest' }); }
 function download(blob, name) { const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 30000); }
+function flashPad(id) {
+  const button = buttons[id];
+  clearTimeout(padFlashTimers.get(id));
+  button.classList.remove('hit');
+  void button.offsetWidth; // Restart the flash even when the same pad is tapped again.
+  button.classList.add('hit');
+  padFlashTimers.set(id, setTimeout(() => { button.classList.remove('hit'); padFlashTimers.delete(id); }, 500));
+}
 async function activate(id, existingOnly = false, explicitGenerate = false) {
+  if (!explicitGenerate) flashPad(id);
   readEditor();
   const pad = { ...pads[id] }, label = `Pad ${id + 1}`;
   const generate = explicitGenerate;
@@ -138,8 +148,11 @@ async function activate(id, existingOnly = false, explicitGenerate = false) {
     if (!media) { openEditor(id); status(`Choose an existing loop for ${label}, or prepare its generation references.`); return; }
     if (liveWork || player.liveActive) await stopLive('Pad pressed; returning to local playback and ending the live attempt.');
     activity.add('Playback', `Loading pad ${id+1} · ${playbackLabel}.`);
+    const showTransition = !player.busy;
+    if (showTransition) buttons[id].classList.add('transitioning');
     try { await player.play(media, playbackLabel, id); activity.add('Playback', `Pad ${id+1}${take?.source === 'local-capture-test' ? ' LOCAL TEST' : ''} playing locally; fade completed.`); }
     catch (error) { status(error.message); activity.add('Playback', error.message, 'error'); }
+    finally { if (showTransition) buttons[id].classList.remove('transitioning'); }
     return;
   }
   if (pending !== null || player.busy) { status('Let the current request or fade finish first.'); activity.add('Local validation', 'Another request or fade is still active; no new request sent.'); return; }

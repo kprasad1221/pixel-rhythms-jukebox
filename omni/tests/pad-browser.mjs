@@ -24,7 +24,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
  page.on('download',d=>downloads.push(d));
  await page.goto(base);
  await page.waitForFunction(()=>document.querySelector('#activity-log').textContent.includes('App ready'));
- assert.equal(await page.locator('.edition').innerText(),'OMNI PLAYGROUND · 0.1.9');
+ assert.equal(await page.locator('.edition').innerText(),'OMNI PLAYGROUND · 0.1.10');
  assert.equal(await page.locator('.pad').count(),10);
  assert.equal(await page.locator('#play-mode').count(),0);
  assert.equal(await page.locator('#generate-pad').isDisabled(),true);
@@ -106,6 +106,6 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
  await page.locator('.pad').first().click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('original loop — playing'));
  assert.deepEqual(errors,[]);assert.equal(tokens.length,0);assert.equal(external.length,0);
- console.log(JSON.stringify({version:'0.1.9',livePattern:live,patternPadPlayback:playing,downloadedPlayback:downloaded,downloadBytes:bytes.length,downloads:downloads.length,crossfade:true,originalAssignmentSurvivedReload:true,tokens:tokens.length,externalRequests:external.length,errors}));
+ console.log(JSON.stringify({version:'0.1.10',livePattern:live,patternPadPlayback:playing,downloadedPlayback:downloaded,downloadBytes:bytes.length,downloads:downloads.length,crossfade:true,originalAssignmentSurvivedReload:true,tokens:tokens.length,externalRequests:external.length,errors}));
  } finally {await browser?.close();server.close();server.closeAllConnections();if(!process.env.JUKEBOX_KEEP_ARTIFACTS)fs.rmSync(artifacts,{recursive:true,force:true});else console.log('Test artifacts: '+artifacts);}
 })().catch(e=>{console.error(e);process.exit(1)});

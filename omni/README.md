@@ -1,3 +1,15 @@
+# Pixel Rhythms · Omni prototype 0.1.10
+
+Pad setup now uses **Pad 1–Pad 10**, matching the performance buttons. Stored names, groups, keyboard shortcuts and media assignments are retained.
+
+The whole pad now lights up: a bright flash on a mouse/touch/keyboard activation, a repeating pulse while loading or crossfading (and during generation preparation), and a stronger sustained glow on the playing pad. Glow reach increases from 17 to 30 pixels and the inner light from 20 to 35 pixels, approximately 75%. Number labels stay above the light layer. Reduced-motion settings use steady illumination instead of animation.
+
+Update from `D:\Projects\reactor-jukebox-git\omni`: stop the server, run `git pull --ff-only`, then `npm.cmd run dev`. Refresh `http://127.0.0.1:8093` and confirm **0.1.10**. Use the same browser and address to retain your saved pad assignments.
+
+Verified locally: build and 45 offline checks pass. The existing browser flow passes for the free live pattern, pad playback/crossfades, downloads, and saved assignments. Targeted browser checks confirm all ten dropdown labels, retained custom names, full-pad illumination, click and keyboard feedback, a three-second transition pulse, failure cleanup, reduced-motion behavior, and five viewport sizes. No Reactor token or paid generation requests were made.
+
+## Historical 0.1.9 checkpoint
+
 # Pixel Rhythms · Omni prototype 0.1.9
 
 ## One main performance screen
