@@ -181,7 +181,7 @@ td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
     <div class="stage-wrap inset">
       <canvas id="stage" width="1280" height="720" aria-label="Mixed output of both decks"></canvas>
       <div class="poster" id="poster"></div>
-      <button class="start" id="start" type="button"><strong>Mix the worlds.</strong><span>Two decks · light voices · beat-locked changes</span><em>Start with sound</em></button>
+      <button class="start" id="start" type="button" disabled><strong>Loading the scene pack…</strong><span>Checking data.json and its media files.</span><em>Please wait</em></button>
       <div class="onair" id="onair" hidden><span id="air-a">A</span><span id="air-b">B</span></div>
       <div class="toast" id="toast" role="status"></div>
     </div>
@@ -232,7 +232,7 @@ td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
     </section>
   </div>
 
-  <footer><p id="status" role="status">Tap a pad to toggle a voice. Hold it to solo.</p>
+  <footer><p id="status" role="status">Checking the scene pack…</p>
     <span><kbd>1</kbd>–<kbd>6</kbd> scenes · <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> voices, hold to solo · <kbd>D</kbd> switch deck · <kbd>X</kbd> fade · <kbd>M</kbd> layer mode · <kbd>Space</kbd> pause</span></footer>
 
   <details class="notes">
@@ -240,6 +240,7 @@ td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
     <p>Each take was compared with its scene's first frame. Camera drift is the largest shift seen across the take. "Adds light" is the share of change that brightens rather than darkens; near 100% means it layers cleanly. Beds are two-bar loops cut on the beat from each soundtrack and retimed to 125 BPM.</p>
     <div class="tablewrap"><table id="facts"><thead><tr><th>Voice</th><th>Role</th><th>Camera drift</th><th>Adds light</th><th>Loop</th><th>Soundtrack tempo</th></tr></thead><tbody></tbody></table></div>
   </details>
+  <p style="margin:0 6px;font-size:13px"><a href="README.md">Experimental mixer: local setup and changing media</a></p>
 </main>
 </div>
 <div id="pool" aria-hidden="true"></div>
@@ -250,7 +251,7 @@ td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
 const $ = s => document.querySelector(s);
 const HOUSE = 125, BEAT = 60 / HOUSE, BAR = 4 * BEAT, PHRASE = 2 * BAR;
 const KEYS = ['q', 'w', 'e', 'r'];
-let DATA = null;
+let DATA = null, packReady = false;
 const state = { started: false, playing: false, ctx: null, master: null, T0: 0, x: 0, xAnim: null, auto: true, fadeBars: 2,
   quant: 'bar', mode: 0, breathe: 0, focus: 0, decks: [], tint: [73, 217, 234], amb: [40, 90, 110] };
 
@@ -607,6 +608,7 @@ function renderScenes() {
   });
 }
 function pickScene(i) {
+  if (!packReady || !DATA.scenes[i]) return;
   if (!state.started) { start().then(() => pickScene(i)); return; }
   const here = state.decks.find(d => d.sceneIdx === i);
   if (here) {
@@ -706,6 +708,7 @@ function updateUI(t) {
 // ---------- start ----------
 let starting = null;
 function start() {
+  if (!packReady) return Promise.resolve();
   if (starting) return starting;
   starting = (async () => {
     if (!gl) { say('This browser could not start WebGL, which the mixer needs. Try current Chrome, Edge, Firefox or Safari.', true); throw new Error('no webgl'); }
@@ -742,7 +745,7 @@ $('#fade-bars').addEventListener('change', e => { state.fadeBars = +e.target.val
 $('#fade-now').addEventListener('click', () => { if (!state.started) return start(); const to = state.x < 0.5 ? 1 : 0; fadeTo(to); say(`Fading to Deck ${'AB'[to]} over ${state.fadeBars} bar${state.fadeBars > 1 ? 's' : ''} from the next bar.`, true); });
 $('#pause').addEventListener('click', pauseToggle);
 $('#start').addEventListener('click', () => start());
-document.querySelectorAll('.dtab').forEach(b => b.addEventListener('click', () => { state.focus = +b.dataset.d; renderAll(); }));
+document.querySelectorAll('.dtab').forEach(b => b.addEventListener('click', () => { if (!packReady) return; state.focus = +b.dataset.d; renderAll(); }));
 const keyHold = {};
 document.addEventListener('keydown', e => {
   if (e.target.closest('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -784,15 +787,57 @@ function facts() {
     tb.appendChild(tr);
   }));
 }
-fetch('data.json').then(r => r.json()).then(data => {
+async function boot() {
+  if (location.protocol === 'file:') throw new Error('Open this through the local server described in mixer/README.md, not by double-clicking the HTML.');
+  const response = await fetch('data.json');
+  if (!response.ok) throw new Error('Missing mixer/data.json. Copy the complete Claude scene pack into mixer/, keeping its folder structure, then reload.');
+  let data;
+  try { data = await response.json(); }
+  catch { throw new Error('data.json is not valid JSON. Recover the original scene pack or correct the file, then reload.'); }
+  if (!Array.isArray(data.scenes) || !data.scenes.length) throw new Error('data.json needs a non-empty scenes array.');
+  for (const id of ['court', 'grove-roots']) {
+    if (!data.scenes.some(sc => sc.id === id)) throw new Error(`This imported study expects a scene named "${id}" in data.json. Recover the original pack before changing its layout.`);
+  }
+  const assets = new Set();
+  for (const sc of data.scenes) {
+    if (!Array.isArray(sc.voices) || sc.voices.length < 1 || sc.voices.length > 4 || !Array.isArray(sc.beds) || !sc.beds.length) {
+      throw new Error(`Scene ${sc.id}: expected 1–4 voices and at least one audio bed.`);
+    }
+    const paths = [sc.plate_thumb, ...sc.voices.flatMap(v => [v.file, v.ref, v.thumb]), ...sc.beds.map(b => b.file)];
+    if (paths.some(path => typeof path !== 'string' || !path.trim())) throw new Error(`Scene ${sc.id}: a video, image or audio path is missing.`);
+    paths.forEach(path => assets.add(path));
+  }
+  // Check availability before enabling playback; do not download full videos here.
+  const missing = (await Promise.all([...assets].map(async path => {
+    try { return (await fetch(path, { method: 'HEAD' })).ok ? null : path; }
+    catch { return path; }
+  }))).filter(Boolean);
+  if (missing.length) throw new Error(`Missing or inaccessible media (${missing.length}): ${missing.slice(0,3).join(', ')}${missing.length > 3 ? ' …' : ''}. Restore the scene pack, then reload.`);
+  if (!gl) throw new Error('WebGL is unavailable. Try Chrome or Edge with graphics acceleration enabled.');
+  initGL();
   DATA = data;
-  if (gl) { try { initGL(); } catch (err) { say('WebGL setup failed: ' + err.message, true); } }
   state.decks = [makeDeck(0), makeDeck(1)];
   for (const d of state.decks) d.target = gl ? newTarget(1280, 720) : null;
   const court = DATA.scenes.find(s => s.id === 'court'); $('#poster').style.backgroundImage = `url('${court.plate_thumb}')`;
   renderAll(); facts();
+  packReady = true;
+  $('#start').disabled = false;
+  $('#start strong').textContent = 'Mix the worlds.';
+  $('#start span').textContent = 'Two decks · light voices · beat-locked changes';
+  $('#start em').textContent = 'Start with sound';
+  $('#sub-status').textContent = 'Scene pack ready. Press start to hear it.';
+  say('Tap a pad to toggle a voice. Hold it to solo.');
   requestAnimationFrame(frame);
-}).catch(() => say('Could not load the scene list. Reload the page to try again.', true));
+}
+boot().catch(err => {
+  packReady = false;
+  $('#start').disabled = true;
+  $('#start strong').textContent = 'Scene pack not ready';
+  $('#start span').textContent = 'See the message below the controls.';
+  $('#start em').textContent = 'Setup instructions below';
+  $('#sub-status').textContent = 'Setup needed.';
+  say(err.message);
+});
 })();
 </script>
 

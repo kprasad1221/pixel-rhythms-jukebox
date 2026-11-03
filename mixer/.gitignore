@@ -1,0 +1,23 @@
+# The recovered scene pack and personal assignments stay local for now.
+data.json
+media/
+assets/
+*.mp4
+*.webm
+*.mov
+*.m4v
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.ogg
+*.flac
+*.aif
+*.aiff
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.zip
+*.tar.gz
