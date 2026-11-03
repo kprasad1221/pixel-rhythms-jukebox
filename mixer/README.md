@@ -1,77 +1,82 @@
 # Pixel Rhythms — experimental mixer
 
-This is the separate `mixer` branch, starting from the latest existing Omni checkpoint, `2078d00`. The original Jukebox at the repository root and the working `omni/` prototype remain available. Open **`/mixer/`** to reach this experiment.
+The `mixer` branch now uses the complete `pixel-rhythms-mixer.zip` supplied on November 2, 2026. Open `/mixer/` to play it. The root Jukebox and `omni/` app are unchanged.
 
-## Handoff status
+This ZIP is a **different, simpler Claude build** from the original attached HTML: six scenes, twelve light voices, one scene playing at a time, and crossfades between scenes. It uses `config.js`, not `data.json`. The earlier two-deck prototype is preserved in [archive/two-deck-study.html](archive/two-deck-study.html) and Git history. It still needs its own original manifest and is not the active playable build.
 
-KP supplied Claude's `index(4).html` on November 2, 2026. The first mixer commit preserves it verbatim as `mixer/index.html`. The next change adds startup checks and these setup notes; the mixing engine has not been redesigned.
+## Run on Windows
 
-**The companion `data.json` and media were not attached or present in either existing GitHub branch.** The HTML alone cannot recreate the six scenes. This checkout therefore shows **Scene pack not ready** until those files are restored. No original-media playback or Windows performance result is claimed.
+If you already cloned this branch:
 
-Recover the complete project folder from Claude, including `data.json`, videos, reference images, thumbnails, prepared audio loops and any media-preparation scripts. Copy the contents beside `mixer/index.html`, preserving the relative subfolders used by `data.json`. Keep this branch's HTML when copying the pack. Do not include credentials or environment files.
+```powershell
+cd D:\Projects\pixel-rhythms-mixer
+git pull --ff-only
+```
 
-The mixer itself uses local media, WebGL and Web Audio. It contains no Reactor client, API key field, live generation or paid-session request. The separate Omni folder still pins Reactor SDK **3.1.0**; that SDK is not loaded by this mixer.
-
-## First local test — Windows PowerShell
-
-Use a separate checkout so you can keep your current Jukebox folder as it is:
+For a new checkout instead:
 
 ```powershell
 cd D:\Projects
 git clone --branch mixer https://github.com/kprasad1221/pixel-rhythms-jukebox.git pixel-rhythms-mixer
 cd pixel-rhythms-mixer
+```
+
+**Restore the media:** extract the supplied ZIP somewhere temporary. Copy only its `mixer/media` folder into `D:\Projects\pixel-rhythms-mixer\mixer\`. The result should include `mixer\media\clips`, `mixer\media\refs` and `mixer\media\music`. Keep the Git checkout's updated HTML and config files. Media remains local and is ignored by Git.
+
+Then, from the repository folder:
+
+```powershell
 npx.cmd --yes http-server . -a 127.0.0.1 -p 8094 -c-1
 ```
 
-Node.js and Git must be installed. The first `npx` run may download the static server package. Open **http://127.0.0.1:8094/mixer/** in Chrome or Edge. This is a static server; it does not start the Omni backend.
+Open **http://127.0.0.1:8094/mixer/**. The first `npx` run may download the static server. No build or Reactor key is needed. This page makes no Reactor requests.
 
-1. Before restoring the pack, expect a clear missing-`data.json` message and a disabled Start button. This confirms you opened the experiment.
-2. Restore the pack under `D:\Projects\pixel-rhythms-mixer\mixer\` and refresh. Missing media paths are reported before Start is enabled. The checks establish file availability, not codec support or correct analysis data.
-3. With the complete original pack, press **Start with sound**. Intended behavior: Court on Deck A, Grove Roots on Deck B, with B in the cue preview. This remains to be verified against the recovered media.
-4. Press **Fade to B**. In this imported design the fade waits for the next bar, then lasts the selected number of bars. Deck tabs change which deck's pads you edit; the crossfader changes what reaches the main output.
+1. Click **Memory Basin · Amber**. Its first light and music should start on the next bar.
+2. Click **Amber B** to layer the other take. Light changes wait for the bar line, then fade over one beat.
+3. Choose **Memory Basin · Turquoise** to test a scene crossfade. The Scene fade control determines its length.
+4. Press **Pause**, close the tab, and press **Ctrl+C** in PowerShell when finished.
 
-**Stop:** press Pause to stop playback, close the browser tab, then press **Ctrl+C** in PowerShell to stop the server.
+These are the first hands-on playback checks to do on KP's laptop. Automated logic and file-decoding checks are described below; browser rendering/audio quality have not been verified in this environment.
 
-For later code updates, stop the server, run `git pull --ff-only` inside `pixel-rhythms-mixer`, and run the server command again. Personal media and `data.json` are ignored by Git. Keep a separate backup of the complete media pack.
+## Swap files without editing code
 
-## Where the video choices live
+Play a scene, then expand **Change clips** below the controls:
 
-This version has no file picker or saved browser assignments. Its source of truth is `mixer/data.json`, loaded at startup. Paths are relative to `mixer/`; use `media/clip.mp4`, for example, rather than a Windows `D:\...` path.
+1. Choose its **Light pad**.
+2. Choose a **Replacement video**.
+3. Optionally choose a **Reference image** and/or **Scene music**.
+4. Click **Apply to this scene**. The current scene continues while the replacement loads; it changes on the next bar. If loading fails, the previous scene is retained.
 
-| Field | What it controls |
-| --- | --- |
-| `scenes[].id`, `name`, `look` | Scene identity and labels. Startup currently expects `court` and `grove-roots`. |
-| `scenes[].plate_thumb` | Scene thumbnail and startup poster. |
-| `scenes[].voices[].file` | Video for that pad. Video audio is muted. |
-| `voices[].ref` | Reference still subtracted from the video when mixing light changes. |
-| `voices[].thumb`, `label`, `colour` | Pad preview, name and RGB accent. |
-| `voices[].kind` | `layer` loops; `move` plays once; `passage` plays once and changes scene. |
-| `voices[].duration_s`, `fps`, `frames`, `size` | Clip timing and dimensions. Must match the replacement clip. |
-| `voices[].offsets`, `light` | Per-frame alignment offsets and light measurements from the preparation stage. |
-| `voices[].drift_max_px`, `adds_light_share`, `loop_note` | Imported analysis shown in the measurements table; not independently verified here. |
-| `scenes[].beds[].file`, `take`, `bpm` | Separate audio-loop path, unique take identifier and source-tempo metadata. Voice `take` associates its metadata with a bed. |
-| `scenes[].shared_audio`, `passage_to` | Shared music behavior and destination scene for a passage. |
+A replacement video automatically uses its first frame as the reference unless you select an image. Replacing the video keeps the scene's music. Choose a separate music file to change that too; WAV and MP3 are straightforward choices. The supplied MP4s are silent, so selecting one as music will not provide a soundtrack. Audio decoding from other video containers depends on browser support.
 
-For an equivalent re-export with unchanged framing and timing, replacing the corresponding media file can be enough. For a different Krea generation, update its related reference, metadata and audio together. Changing only `voices[].file` can produce misalignment, incorrect pad feedback or unexpected timing. The preparation scripts are needed to reproduce the original measurements; none came with this handoff.
+Changes last **until the page reloads or closes**. They remain when visiting other scenes in the same tab. **Restore this scene** brings back its original files and releases unused temporary media. Files are not uploaded, copied into Git, or saved in browser storage by this panel. Keep your original files separately. This first swapping step edits existing pads; adding scenes/pads and saving an arrangement are separate next changes.
 
-The shader compares complete videos against reference stills. It does **not** separate fog, lights or architecture into true independent layers. “Brightest wins” chooses the strongest positive image difference; “Add light” sums them.
+For a permanent assignment, place files under `mixer/media/` and edit the relevant scene in `config.js`. Each scene has `name`, optional `music`, and up to four `voices`; each voice has `name`, `video`, optional `ref`, and optional `color`. Paths are relative to `mixer/`. After saving, refresh. There is no per-frame analysis file to regenerate in this packaged build.
 
-The imported transport is fixed at **125 BPM**. Audio beds were described by the imported UI as prepared two-bar loops. Editing the BPM label or `beds[].bpm` does not retime arbitrary audio. There are at most four voices per scene and six numbered scene shortcuts in this study. These are current assumptions to revisit after the original pack plays.
+## What the mixer is doing
 
-## Next small interaction pass
+It compares each complete video against a still reference frame, adding bright differences and averaging dark differences. This does not isolate lights or fog as independent layers. Related takes from the same fixed camera view work best; camera motion or mismatched framing can produce ghosting. Higher-resolution replacements are accepted but increase decoding/upload work, so first swap one clip and judge laptop responsiveness.
 
-First restore and play the original two scenes. Then tackle one flow: **choose a clip → see which deck it belongs to → preview → fade it into the output**. A media picker is proposed, not implemented in this checkpoint. Its import path needs to handle reference images and analysis data as well as video selection.
+The provided pack contains fourteen H.264 MP4s, fourteen JPEG references and ten WAV loops. Twelve videos and six music loops are assigned in `config.js`. Grove B (passage) and Observatory C (camera push-in), plus alternate music loops, are preserved in the pack but not assigned in this simpler build.
 
-Other observations to test with actual media: startup/loading feedback, pause during a pending scene change, rapid scene changes, passage preparation, and whether editing a cue deck is visually distinct from bringing it on air. Recording and live generation from Omni have not been integrated here.
+The videos are 896 pixels wide, 500 or 512 pixels high, about 4.48–5.21 seconds long, and contain no embedded audio. The stereo WAVs are 32 kHz, 16-bit, and exactly 3.84 seconds: two 4/4 bars at **125 BPM**. The transport stays at 125 for this pack. The videos themselves have different lengths and are not beat-synchronized. Changing `bpm` changes scheduling; it does not time-stretch replacement music or video.
 
-## Validation for this checkpoint
+## Validation and limits
 
-`node --test mixer/tests/startup.test.mjs` passes nine checks of missing/malformed packs, asset availability, required scenes, WebGL failure and input before readiness. These execute the actual inline application script with DOM/canvas stubs. They do not verify rendering, decoding, sound or interaction feel. JavaScript syntax and Git whitespace checks also pass. A real browser run was unavailable in the development environment; original-media playback still needs the recovered pack and a local test.
+- All thirty configured file paths resolve in the supplied pack.
+- All fourteen videos and ten audio loops decode fully with FFmpeg without errors.
+- Ten integration checks execute the actual app and DOM with simulated video/audio/GPU services: scene switching, queued lights, pause, replacement/reference/music choices, reset, failed-load rollback, resource cleanup and competing clicks.
+- Nine checks for the archived two-deck startup continue to pass.
+- JavaScript syntax and Git whitespace checks pass.
 
-## Continuity
+The headless browser could not launch under this environment's socket restrictions. The checks above do **not** establish real browser rendering, sound, timing accuracy, loop seams, Windows performance or iPad behavior. No paid generation was attempted.
+
+Developer checks (not needed to play): `npm --prefix mixer ci`, then `npm --prefix mixer test`. The DOM-only integration tests deliberately simulate media and GPU services; use the actual clips in a browser for visual/audio judgments.
+
+## Project continuity
 
 - [Reactor H3 handoff](https://app.notion.com/p/3e41f16ba962817d8144cdd570f83673)
 - [One-screen playback and recording milestone](https://app.notion.com/p/3fc1f16ba962817e8098d7742e644398)
 - [Scenes, cascading pads and finding a simpler interface](https://app.notion.com/p/4001f16ba9628129be9ef0b1a2b9ffb1)
 
-These sources establish the existing playable foundation and the unresolved browsing-versus-playing question. They are not evidence that Claude's new mixer has passed playback tests.
+The existing Omni recording/live-generation features have not been integrated into this mixer. The first experiment is to play the supplied scenes and swap one light voice, then refine what the controls mean through use.

@@ -1,844 +1,649 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Jukebox Mixer Study</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<style>
-/* Layout: KP's glass instrument on deep teal. Stage + side column on top, crossfader under the stage,
-   then scenes (left column, or a scrolling strip when narrow) beside the focused deck's voice pads. */
-:root{
-  --deep:#0f3442; --deep-2:#163b4a;
-  --glass-1:#dceef4; --glass-2:#a9cad8; --glass-3:#dfedf4;
-  --rim:#f1fdff; --ink:#164256; --ink-soft:#3a5d70;
-  --well-1:#092d3c; --well-2:#123f50; --well-ink:#b8dce5; --well-mute:#7fa5b3;
-  --cyan:#49d9ea; --gold:#f1d785; --warn:#f3c26b;
-  --bg-a:rgb(76,130,146); --bg-b:rgb(22,59,74); --hi:73,217,234;
-  --font:"Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
-  --mono:ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
-  color-scheme: light;
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pixel Rhythms — Mixer</title>
+  <style>
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+:root { color-scheme: light; font-family: 'Segoe UI', system-ui, sans-serif; color: #164256; --bg-a: #4c8292; --bg-b: #163b4a; --glow: 73, 217, 234; }
+body { margin: 0; min-height: 100vh; padding: 24px; background: radial-gradient(ellipse at 50% 0%, var(--bg-a), var(--bg-b) 75%); transition: background .8s; }
+main { max-width: 1200px; margin: auto; padding: 22px; border: 1px solid #f1fdff; border-radius: 32px; background: linear-gradient(120deg, #dceef4ee, #a9cad8ed 48%, #dfedf4ee); box-shadow: inset 0 0 0 3px #ffffff65, inset 0 0 0 6px #557b8933, 0 22px 65px #041e3266, 0 0 60px rgba(var(--glow), .16); }
+header { display: flex; justify-content: space-between; align-items: center; padding: 2px 8px 20px; gap: 12px; }
+h1 { font-size: 17px; font-weight: 500; letter-spacing: .34em; margin: 0; }
+.edition { font-size: 10px; letter-spacing: .22em; display: flex; align-items: center; gap: 12px; }
+.beats { display: inline-flex; gap: 5px; }
+.beats i { width: 8px; height: 8px; border-radius: 50%; background: #54717b44; }
+.beats i.on { background: #2fc6dc; box-shadow: 0 0 7px #33cfff; }
+.beats i.on:first-child { background: #e3b84f; box-shadow: 0 0 7px #eabb57; }
+.screen-row, .deck { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 16px; }
+.inset { border: 1px solid #e9fbff; border-radius: 17px; background: linear-gradient(130deg, #092d3c, #123f50); box-shadow: 0 0 0 2px #37637577, inset 0 2px 7px #001823; overflow: hidden; }
+.stage { position: relative; aspect-ratio: 16/9; background: #06222e; box-shadow: 0 0 0 2px #37637577, inset 0 2px 7px #001823, 0 0 30px rgba(var(--glow), .2); }
+#stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; color: #b8dce5; gap: 12px; background: radial-gradient(ellipse at 50% 20%, #235970, #082733 75%); }
+.empty strong { font-weight: 300; font-size: clamp(20px, 3vw, 38px); letter-spacing: .06em; }
+.empty span { font-size: 12px; letter-spacing: .1em; }
+.side { display: grid; grid-template-rows: 2fr 1fr; gap: 14px; min-height: 0; }
+canvas.feedback { display: block; width: 100%; height: 100%; }
+.meters, .scope { position: relative; min-height: 0; }
+.ribbon { height: 44px; margin: 16px 0; border-radius: 14px; }
+.row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 0 4px 8px; font-size: 11px; letter-spacing: .2em; }
+.row-head b { font-weight: 600; letter-spacing: .06em; }
+.row-head .hint { letter-spacing: .04em; color: #33566a; font-size: 11px; }
+.lights-head { margin-top: 14px; }
+.clip-grid { display: grid; gap: 12px; }
+.scenes { grid-template-columns: repeat(var(--count, 6), minmax(0, 1fr)); }
+.lights { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.pad { position: relative; text-align: left; min-width: 0; padding: 14px; display: flex; flex-direction: column; justify-content: flex-end; border: 1px solid #f1fdff; border-radius: 20px; background: radial-gradient(ellipse at 50% 65%, rgba(var(--pad), .64), rgba(var(--pad), .18) 75%), linear-gradient(140deg, #f6fdffbb, #ffffff22 40%, #e2f4ff99); box-shadow: 0 0 0 2px #42677888, inset 0 0 0 3px #edfcff99, inset 0 5px 7px #ffffffce, inset 0 -5px 9px #51728b44, 0 5px 9px #153d5426; transition: box-shadow .15s, transform .1s, filter .15s; }
+.scenes .pad { aspect-ratio: 1.7; }
+.scenes .pad-name { white-space: normal; line-height: 1.15; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: clamp(11px, 1.15vw, 14px); }
+.lights .pad { aspect-ratio: 1.22; }
+.pad:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); }
+.pad:not(:disabled):active { transform: translateY(2px); }
+.pad[aria-pressed=true] { background: radial-gradient(ellipse at 50% 65%, rgba(var(--pad), .95), rgba(var(--pad), .5) 75%), linear-gradient(140deg, #fff, #ffffff33); box-shadow: 0 0 0 2px #1e738888, inset 0 0 0 3px #e6ffff, inset 0 0 20px #ffffffa6, 0 0 18px rgba(var(--pad), .75); }
+.pad-name { font-size: clamp(12px, 1.4vw, 16px); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pad-key { position: absolute; top: 12px; left: 14px; font-size: 10px; opacity: .6; }
+.pad-mode { font-size: 9px; letter-spacing: .09em; opacity: .65; margin-top: 3px; text-transform: uppercase; }
+.pad::after { content: ''; position: absolute; width: 6px; height: 6px; border-radius: 50%; top: 14px; right: 14px; background: #54717b33; }
+.pad[aria-pressed=true]::after { background: #eaffff; box-shadow: 0 0 7px #33cfff; }
+.pad.pending::after { background: #fff1a7; box-shadow: 0 0 6px #eabb57; animation: blink .24s steps(1, end) infinite; }
+@keyframes blink { 50% { opacity: .15; } }
+.pad::before { content: ''; position: absolute; bottom: 6px; left: 12px; right: 12px; height: 3px; border-radius: 2px; background: #fff2a4; transform: scaleX(var(--progress, 0)); transform-origin: left; }
+.pad:disabled { cursor: default; opacity: .45; }
+.pad.empty-slot { visibility: hidden; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #075b91; outline-offset: 5px; }
+.transport { display: flex; flex-direction: column; align-items: center; border-left: 1px solid #5a7c8d55; padding-left: 16px; }
+.volume-label { font-size: 11px; letter-spacing: .2em; margin: 3px 0 10px; }
+.fader { flex: 1; min-height: 105px; width: 110px; position: relative; display: flex; justify-content: center; }
+#volume { writing-mode: vertical-lr; direction: rtl; appearance: none; -webkit-appearance: none; width: 22px; height: 100%; min-height: 105px; margin: 0; border: 1px solid #d8f8ff; border-radius: 14px; background: linear-gradient(to top, #49d9ea 0%, #49d9ea var(--volume, 80%), #163b4a var(--volume, 80%), #163b4a 100%); box-shadow: 0 0 0 2px #789eaf, inset 0 0 0 5px #0b3546; cursor: ns-resize; touch-action: none; }
+#volume::-webkit-slider-thumb { appearance: none; width: 45px; height: 26px; border-radius: 7px; border: 1px solid #faffff; background: linear-gradient(to bottom, #eef7fa, #8da6b1 42%, #e6f3f9 46%, #416575 50%, #e3eff5 54%, #acc3ce 85%, #effaff); box-shadow: 0 2px 4px #173e5077, 0 0 0 1px #65899a; }
+#volume::-moz-range-thumb { width: 45px; height: 26px; border-radius: 7px; border: 1px solid white; background: linear-gradient(#effaff, #a3bbc9 44%, #446777 50%, #d7e9f1 57%, #9ab5c2); }
+.ticks { position: absolute; left: 80px; top: 0; bottom: 0; width: 9px; background: repeating-linear-gradient(to bottom, #557b88 0 1px, transparent 1px 16px); pointer-events: none; }
+#volume-value { font-size: 10px; font-variant-numeric: tabular-nums; padding: 7px; }
+.transport-bottom { display: flex; gap: 12px; align-items: center; width: 100%; justify-content: center; }
+#pause { border: 1px solid #edffff; border-radius: 50%; width: 56px; height: 56px; flex-shrink: 0; font-size: 12px; background: linear-gradient(135deg, #e5f8ff, #99becf); box-shadow: 0 0 0 2px #60879777, inset 0 2px 5px white, 0 3px 5px #34596c44; }
+.fade { border: 1px solid #f1fcff; border-radius: 10px; padding: 8px; text-align: center; box-shadow: inset 0 0 10px #ffffff44; }
+.fade small { display: block; font-size: 9px; letter-spacing: .14em; margin-bottom: 4px; }
+.fade select { font: inherit; font-size: 14px; color: inherit; border: 0; background: transparent; }
+footer { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; padding: 14px 4px 0; font-size: 11px; color: #33566a; }
+#status { margin: 0; }
+.help { font-size: 10px; text-align: right; opacity: .85; }
+.media-editor { margin-top: 18px; border-top: 1px solid #7493a655; padding: 12px 4px 0; font-size: 13px; }
+.media-editor summary { cursor: pointer; font-weight: 600; }
+.media-editor p { margin: 10px 0; line-height: 1.5; }
+.media-editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.media-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 14px; }
+.media-fields label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.media-fields input, .media-fields select { width: 100%; min-width: 0; font: inherit; color: inherit; }
+.media-fields select { padding: 5px; }
+.media-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.media-actions button { border: 1px solid #f1fdff; border-radius: 10px; padding: 8px 14px; background: #e5f8ff; }
+.media-actions button:disabled { opacity: .5; cursor: default; }
+#media-status { overflow-wrap: anywhere; }
+#pool { position: fixed; left: 0; top: 0; width: 2px; height: 2px; overflow: hidden; opacity: 0; pointer-events: none; }
+#pool video { width: 2px; height: 2px; }
+@media (max-width: 850px) {
+  body { padding: 12px; } main { padding: 16px; border-radius: 25px; }
+  .screen-row, .deck { grid-template-columns: minmax(0, 1fr) 140px; gap: 12px; }
+  .clip-grid { gap: 9px; } .pad { padding: 10px; border-radius: 15px; } .pad-key { top: 9px; left: 10px; }
+  .scenes { grid-template-columns: repeat(min(var(--count, 6), 4), minmax(0, 1fr)); }
+  .transport { padding-left: 10px; } .transport-bottom { gap: 8px; flex-direction: column; } #pause { width: 45px; height: 45px; }
 }
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-html,body{background:var(--deep)}
-body{font-family:var(--font);color:var(--ink);font-size:14px;line-height:1.45;
-  background:radial-gradient(ellipse at 50% 0%, var(--bg-a), var(--bg-b) 72%) fixed, var(--deep);
-  transition:background .8s}
-.shell{padding-block:20px 32px;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px))}
-.instrument{max-width:1280px;margin:0 auto;padding:18px;border:1px solid var(--rim);border-radius:28px;
-  background:linear-gradient(120deg,rgba(220,238,244,.94),rgba(169,202,216,.93) 48%,rgba(223,237,244,.94));
-  box-shadow:inset 0 0 0 3px #ffffff65,inset 0 0 0 6px #557b8933,0 22px 65px #041e3266,0 0 70px rgba(var(--hi),.18);
-  display:flex;flex-direction:column;gap:14px;transition:box-shadow .8s}
-header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:2px 6px 0}
-h1{font-size:17px;font-weight:500;letter-spacing:.34em;margin:0}
-.edition{font-size:10.5px;letter-spacing:.22em;color:var(--ink-soft)}
-.sub{display:flex;flex-wrap:wrap;gap:4px 18px;padding:0 6px;font-size:13px;color:var(--ink-soft)}
-.sub b{color:var(--ink);font-weight:600}
-.inset{border:1px solid #e9fbff;border-radius:17px;background:linear-gradient(130deg,var(--well-1),var(--well-2));
-  box-shadow:0 0 0 2px #37637577,inset 0 2px 7px #001823;overflow:hidden;color:var(--well-ink)}
-.top{display:grid;grid-template-columns:minmax(0,1fr) 232px;gap:14px}
-.stage-wrap{position:relative;aspect-ratio:16/9;max-width:100%;box-shadow:0 0 0 2px #37637577,inset 0 2px 7px #001823,0 0 34px rgba(var(--hi),.22)}
-#stage{display:block;width:100%;height:100%;background:#06222e}
-.poster{position:absolute;inset:0;background-size:cover;background-position:center;filter:saturate(.8) brightness(.55)}
-.start{position:absolute;inset:0;z-index:3;display:grid;place-content:center;gap:10px;text-align:center;border:0;background:transparent;color:#e7fbff;cursor:pointer;font:inherit;padding:16px}
-.start strong{font-weight:300;font-size:clamp(20px,3.2vw,36px);letter-spacing:.06em}
-.start span{font-size:12.5px;letter-spacing:.1em}
-.start em{font-style:normal;justify-self:center;margin-top:6px;padding:9px 18px;border-radius:999px;border:1px solid #eaffff;background:linear-gradient(135deg,#e5f8ff,#99becf);color:var(--ink);font-size:14px;letter-spacing:.04em;box-shadow:0 0 0 2px #60879777,inset 0 2px 5px white}
-.start:focus-visible em{outline:3px solid #eaffff;outline-offset:4px}
-.onair{position:absolute;left:12px;top:10px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
-.onair span{font-size:11px;letter-spacing:.08em;color:#eaffff;background:rgba(6,34,46,.55);border:1px solid rgba(234,255,255,.35);padding:2px 9px;border-radius:999px;font-variant-numeric:tabular-nums}
-.toast{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);max-width:calc(100% - 24px);font-size:12.5px;color:#eaffff;background:rgba(6,34,46,.7);border:1px solid rgba(234,255,255,.3);padding:5px 12px;border-radius:999px;pointer-events:none;text-align:center;opacity:0;transition:opacity .3s}
-.toast.show{opacity:1}
-.side{display:flex;flex-direction:column;gap:12px;min-width:0}
-.panel{padding:10px 12px}
-.plabel{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--well-mute);margin-bottom:8px}
-.plabel b{font-weight:500;color:var(--well-ink);letter-spacing:.04em;text-transform:none;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.beats{display:grid;grid-template-columns:repeat(8,1fr);gap:5px}
-.beats i{height:12px;border-radius:4px;background:#244955;transition:background .06s}
-.beats i:nth-child(4n+1){height:16px;margin-top:-2px}
-.beats i.on{background:var(--cyan);box-shadow:0 0 8px rgba(73,217,234,.7)}
-.beats i.on.down{background:var(--gold);box-shadow:0 0 9px rgba(241,215,133,.8)}
-.clockline{display:flex;justify-content:space-between;margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--well-ink);font-variant-numeric:tabular-nums}
-#cue{display:block;width:100%;aspect-ratio:16/9;border-radius:9px;background:#06222e}
-#meters{display:block;width:100%;height:96px}
-.vol{display:flex;align-items:center;gap:10px}
-.vol label{font-size:10.5px;letter-spacing:.18em;color:var(--ink-soft)}
-.vol output{font-family:var(--mono);font-size:12px;min-width:4ch;text-align:right}
-.btn{font:inherit;font-size:13px;color:var(--ink);cursor:pointer;border:1px solid #edffff;border-radius:999px;padding:7px 14px;background:linear-gradient(135deg,#e5f8ff,#a9c8d6);box-shadow:0 0 0 2px #60879755,inset 0 2px 5px #ffffffcc;touch-action:manipulation;-webkit-tap-highlight-color:transparent;white-space:nowrap}
-.btn:hover{filter:brightness(1.05)}
-.btn:active{transform:translateY(1px)}
-.btn[aria-pressed=true]{background:linear-gradient(135deg,#d6fbff,#7fd8e6);box-shadow:0 0 0 2px #1e738888,inset 0 2px 5px #ffffffcc,0 0 12px rgba(73,217,234,.55)}
-.btn:focus-visible,.seg button:focus-visible,.scene:focus-visible,.pad:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #075b91;outline-offset:3px}
-input[type=range]{accent-color:#2aa7bd;min-width:0}
-.glassrange{appearance:none;-webkit-appearance:none;height:22px;border-radius:12px;border:1px solid #d8f8ff;background:linear-gradient(90deg,#163b4a,#245566 50%,#163b4a);box-shadow:0 0 0 2px #789eaf,inset 0 0 0 4px #0b3546;cursor:ew-resize;touch-action:none}
-.glassrange::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:44px;height:30px;border-radius:7px;border:1px solid #faffff;background:linear-gradient(90deg,#eef7fa,#8da6b1 42%,#e6f3f9 46%,#416575 50%,#e3eff5 54%,#acc3ce 85%,#effaff);box-shadow:0 2px 4px #173e5077,0 0 0 1px #65899a}
-.glassrange::-moz-range-thumb{width:44px;height:30px;border-radius:7px;border:1px solid #fff;background:linear-gradient(90deg,#effaff,#a3bbc9 44%,#446777 50%,#d7e9f1 57%,#9ab5c2)}
-.xrow{display:grid;grid-template-columns:minmax(0,180px) minmax(0,1fr) minmax(0,180px) auto;align-items:center;gap:12px 14px;padding:4px 6px}
-.dk{min-width:0;display:flex;flex-direction:column;gap:1px}
-.dk small{font-size:10.5px;letter-spacing:.18em;color:var(--ink-soft)}
-.dk span{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dk.right{text-align:right}
-.xctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-select{font:inherit;font-size:13px;color:var(--ink);border:1px solid #edffff;border-radius:10px;padding:6px 8px;background:linear-gradient(135deg,#eef9fd,#c4dce6);box-shadow:0 0 0 2px #60879744}
-.mixrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;padding:0 6px}
-.field{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft)}
-.field .lab{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
-.seg{display:inline-flex;border:1px solid #edffff;border-radius:999px;padding:3px;background:rgba(255,255,255,.35);box-shadow:0 0 0 2px #60879733}
-.seg button{font:inherit;font-size:12.5px;color:var(--ink);border:0;background:transparent;padding:5px 11px;border-radius:999px;cursor:pointer;white-space:nowrap}
-.seg button[aria-pressed=true]{background:linear-gradient(135deg,#ffffff,#bfe9f1);box-shadow:inset 0 0 0 1px #9fd5e0,0 0 8px rgba(73,217,234,.45)}
-.deckrow{display:grid;grid-template-columns:262px minmax(0,1fr);gap:14px;align-items:start}
-.scenes{display:flex;flex-direction:column;gap:9px;min-width:0}
-.scenes h2,.voicesec h2{font-size:10.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;margin:0 4px 2px;color:var(--ink-soft)}
-.scene-list{display:flex;flex-direction:column;gap:9px}
-.scene{--c:73,217,234;--lvl:0;--q:0;position:relative;display:grid;grid-template-columns:70px minmax(0,1fr) auto;align-items:center;gap:10px;text-align:left;font:inherit;color:var(--ink);cursor:pointer;
-  padding:7px 10px 7px 7px;border:1px solid var(--rim);border-radius:15px;background:linear-gradient(140deg,#f6fdffcc,#ffffff33 40%,#e2f4ffaa);
-  box-shadow:0 0 0 2px #42677866,inset 0 0 0 2px #edfcff88,0 0 calc(18px*var(--lvl)) rgba(var(--c),calc(.55*var(--lvl)));overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-.scene .th{width:70px;aspect-ratio:16/9;border-radius:8px;background-size:cover;background-position:center;box-shadow:0 0 0 1px #ffffffaa}
-.scene .nm{min-width:0;display:flex;flex-direction:column}
-.scene .nm b{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.scene .nm span{font-size:12px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.scene .bd{display:flex;gap:4px}
-.scene .bd i{font-style:normal;font-size:11px;font-weight:700;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:#fff;background:#2d6b80;box-shadow:0 0 0 1px #ffffffaa}
-.scene .bd i.air{background:#19a3bb;box-shadow:0 0 0 1px #fff,0 0 8px rgba(73,217,234,.8)}
-.scene .key{position:absolute;right:8px;bottom:4px;font-size:10px;color:var(--ink-soft);opacity:.75}
-.scene::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:calc(var(--q)*100%);background:var(--gold)}
-.scene.loading{border-style:dashed}
-.voicesec{min-width:0;display:flex;flex-direction:column;gap:10px}
-.dtabs{display:flex;gap:8px;flex-wrap:wrap}
-.dtab{flex:1 1 220px;min-width:0;text-align:left;font:inherit;cursor:pointer;color:var(--ink);border:1px solid var(--rim);border-radius:12px;padding:7px 12px;background:rgba(255,255,255,.3);box-shadow:0 0 0 2px #42677844;display:flex;gap:8px;align-items:baseline}
-.dtab small{font-size:10.5px;letter-spacing:.16em;color:var(--ink-soft)}
-.dtab span{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dtab em{margin-left:auto;font-style:normal;font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}
-.dtab[aria-selected=true]{background:linear-gradient(135deg,#ffffff,#cdeef5);box-shadow:0 0 0 2px #1e738866,0 0 12px rgba(73,217,234,.35)}
-.music{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:13px;color:var(--ink-soft);min-height:32px}
-.pads{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
-.voice{--c:73,217,234;--e:0;--q:0;display:flex;flex-direction:column;gap:6px;min-width:0}
-.pad{position:relative;display:flex;flex-direction:column;gap:7px;text-align:left;font:inherit;color:var(--ink);cursor:pointer;padding:8px 8px 11px;border:1px solid var(--rim);border-radius:18px;
-  background:radial-gradient(ellipse at 50% 85%,rgba(var(--c),.30),rgba(var(--c),.06) 70%),linear-gradient(140deg,#f6fdffbb,#ffffff22 40%,#e2f4ff99);
-  box-shadow:0 0 0 2px #42677888,inset 0 0 0 3px #edfcff99,inset 0 5px 7px #ffffffce,inset 0 -5px 9px #51728b44,0 5px 9px #153d5426;
-  transition:transform .08s;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;overflow:hidden}
-.pad:active{transform:translateY(2px)}
-.pad .pt{position:relative;aspect-ratio:16/9;border-radius:11px;background-size:cover;background-position:center;filter:saturate(.45) brightness(.5);transition:filter .25s;box-shadow:0 0 0 1px #ffffffaa}
-.pad .pk{position:absolute;top:13px;left:14px;font-size:11px;font-weight:600;color:#eaffff;text-shadow:0 1px 2px #000a}
-.pad .tag{position:absolute;top:13px;right:13px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#eaffff;background:rgba(6,34,46,.6);padding:1px 7px;border-radius:999px}
-.pad .pl{display:flex;flex-direction:column;padding:0 4px}
-.pad .pl b{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pad .pl span{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pad::after{content:"";position:absolute;left:10px;right:10px;bottom:5px;height:3px;border-radius:2px;background:var(--gold);transform:scaleX(var(--q));transform-origin:left}
-.voice.on .pad{background:radial-gradient(ellipse at 50% 85%,rgba(var(--c),.75),rgba(var(--c),.25) 75%),linear-gradient(140deg,#fff,#ffffff33);
-  box-shadow:0 0 0 2px rgba(var(--c),.9),inset 0 0 0 3px #e6ffff,inset 0 0 20px #ffffffa6,0 0 calc(6px + 30px*var(--e)) rgba(var(--c),calc(.25 + .6*var(--e)))}
-.voice.on .pad .pt{filter:none}
-.voice.queued .pad{border-style:dashed;border-color:rgb(var(--c))}
-.voice.solo .pad{box-shadow:0 0 0 3px #fff,0 0 0 6px rgba(var(--c),.9),0 0 30px rgba(var(--c),.8)}
-.level{display:flex;align-items:center;gap:8px;padding:0 6px;font-size:11px;color:var(--ink-soft)}
-.level input{flex:1}
-.level output{font-family:var(--mono);font-size:11.5px;min-width:3.5ch;text-align:right}
-.empty{padding:18px;border:1px dashed #6f97a8;border-radius:16px;color:var(--ink-soft);font-size:13.5px;background:rgba(255,255,255,.2)}
-footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 18px;padding:2px 6px 0;font-size:12px;color:var(--ink-soft)}
-#status{margin:0;color:var(--ink)}
-kbd{font-family:var(--mono);font-size:11px;padding:0 4px;border-radius:4px;border:1px solid #9cbccb;background:rgba(255,255,255,.5)}
-details.notes{padding:4px 6px 0}
-details.notes summary{cursor:pointer;font-size:13px;color:var(--ink)}
-.tablewrap{overflow-x:auto;margin-top:10px}
-table{border-collapse:collapse;font-size:12.5px;min-width:680px;width:100%}
-th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #9fc0ce}
-th{font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
-td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.notes p{max-width:75ch;font-size:13px;color:var(--ink-soft);margin:10px 0 0}
-#pool{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;opacity:0;pointer-events:none}
-#pool video{width:2px;height:2px}
-.pip{position:absolute;right:10px;bottom:10px;width:36%;padding:5px;border-radius:11px;z-index:2}
-.pip .plabel{margin:0 2px 4px;font-size:9.5px}
-.pip .plabel b{font-size:10.5px}
-.pip #cue{border-radius:7px}
-@media (max-width:1060px){
-  .top{grid-template-columns:minmax(0,1fr)}
-  .side{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start}
-  .side .vol{grid-column:1/-1}
-  .deckrow{grid-template-columns:minmax(0,1fr)}
-  .scene-list{flex-direction:row;overflow-x:auto;padding:4px 4px 8px;scroll-snap-type:x proximity}
-  .scene{flex:0 0 230px;scroll-snap-align:start}
-  .xrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-  .xrow .glassrange{grid-column:1/-1;grid-row:2}
-  .xrow .xctl{grid-column:1/-1;justify-content:flex-start}
+@media (max-width: 600px) {
+  body { padding: 8px; } main { padding: 12px; border-radius: 20px; }
+  header { padding: 5px 2px 14px; } h1 { font-size: 12px; letter-spacing: .22em; } .edition { font-size: 8px; }
+  .screen-row { grid-template-columns: 1fr; } .side { display: none; } .deck { grid-template-columns: 1fr; }
+  .scenes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .scenes .pad { aspect-ratio: 1.5; } .lights .pad { aspect-ratio: 1; padding: 8px 5px; border-radius: 12px; }
+  .pad-name { font-size: 11px; } .pad-key { font-size: 8px; top: 7px; left: 8px; } .pad-mode { font-size: 7px; }
+  .pad::after { top: 8px; right: 8px; width: 4px; height: 4px; }
+  .row-head .hint { display: none; }
+  .ribbon { height: 30px; margin: 12px 0; }
+  .transport { border-left: 0; border-top: 1px solid #7493a655; padding: 12px 0 0; display: grid; grid-template-columns: 1fr 80px 1fr; align-items: center; gap: 8px; }
+  .volume-label { margin: 0; justify-self: end; } .fader { height: 112px; min-height: 112px; width: 80px; } .ticks { left: 65px; }
+  #volume-value { grid-column: 2; grid-row: 2; text-align: center; } .transport-bottom { grid-column: 3; grid-row: 1 / 3; }
+  footer { display: block; } .help { text-align: left; display: block; margin-top: 6px; }
 }
-@media (max-width:720px){
-  .instrument{padding:12px;border-radius:22px}
-  .side{grid-template-columns:repeat(2,minmax(0,1fr))}
-  #meters{height:72px}
-  .toast{left:10px;bottom:10px;transform:none;max-width:56%;font-size:11.5px;border-radius:12px;text-align:left}
-  .pads{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
-  .pad .pl b{font-size:13px}
-  .scene{flex-basis:200px}
-  h1{font-size:13px;letter-spacing:.24em}
-}
-@media (prefers-reduced-motion: reduce){ .pad,.btn,body,.instrument,.beats i{transition:none} }
-</style>
-
-<div class="shell">
-<main class="instrument">
-  <header><h1>PIXEL RHYTHMS</h1><span class="edition">JUKEBOX · MIXER STUDY</span></header>
-  <div class="sub"><span><b>6 scenes</b> · 14 voices from your H3 takes</span><span>Clock <b>125 BPM</b> · two-bar loops</span><span id="sub-status">Press start to hear it.</span></div>
-
-  <div class="top">
-    <div class="stage-wrap inset">
-      <canvas id="stage" width="1280" height="720" aria-label="Mixed output of both decks"></canvas>
-      <div class="poster" id="poster"></div>
-      <button class="start" id="start" type="button" disabled><strong>Loading the scene pack…</strong><span>Checking data.json and its media files.</span><em>Please wait</em></button>
-      <div class="onair" id="onair" hidden><span id="air-a">A</span><span id="air-b">B</span></div>
-      <div class="toast" id="toast" role="status"></div>
+@media (prefers-reduced-motion: reduce) { .pad { transition: none; } .pad.pending::after { animation: none; } body { transition: none; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>PIXEL RHYTHMS</h1><span class="edition"><span class="beats" id="beats" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span id="tempo">MIXER · 125 BPM</span></span></header>
+  <div class="screen-row">
+    <div class="stage inset">
+      <canvas id="stage" width="1280" height="720" aria-label="Mixed picture"></canvas>
+      <div class="empty" id="empty"><strong>A world at your fingertips.</strong><span>Tap a scene to begin.</span></div>
     </div>
-    <aside class="side" aria-label="Clock, cue and meters">
-      <div class="inset panel">
-        <div class="plabel">Clock <b id="bar-label">Bar 1 of 2</b></div>
-        <div class="beats" id="beats" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="clockline"><span id="clock-bar">bar —</span><span>125 BPM</span></div>
-      </div>
-      <div class="inset panel" id="cue-panel">
-        <div class="plabel">Cue <b id="cue-label">Deck B</b></div>
-        <canvas id="cue" width="256" height="144" aria-label="Preview of the deck that is not on air"></canvas>
-      </div>
-      <div class="inset panel">
-        <div class="plabel">Light <b id="meter-label">Deck A</b></div>
-        <canvas id="meters" aria-label="Light level of each voice on the focused deck"></canvas>
-      </div>
-      <div class="vol"><label for="volume">VOLUME</label><input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" style="flex:1"><output id="volume-out" for="volume">80%</output><button class="btn" id="pause" type="button" disabled>Pause</button></div>
+    <aside class="side" aria-label="Live audio feedback">
+      <div class="meters inset"><canvas class="feedback" id="meters" aria-label="Left and right audio peak levels"></canvas></div>
+      <div class="scope inset"><canvas class="feedback" id="scope" aria-label="Live audio waveform"></canvas></div>
     </aside>
   </div>
-
-  <div class="xrow">
-    <div class="dk"><small>DECK A</small><span id="dk-a">—</span></div>
-    <input class="glassrange" id="xfader" type="range" min="0" max="1000" step="1" value="0" aria-label="Crossfader between Deck A and Deck B">
-    <div class="dk right"><small>DECK B</small><span id="dk-b">—</span></div>
-    <div class="xctl">
-      <button class="btn" id="auto" type="button" aria-pressed="true">Auto fade</button>
-      <select id="fade-bars" aria-label="Fade length"><option value="1">1 bar</option><option value="2" selected>2 bars</option><option value="4">4 bars</option></select>
-      <button class="btn" id="fade-now" type="button">Fade to B</button>
+  <div class="ribbon inset"><canvas class="feedback" id="ribbon" aria-label="Recent audio amplitude history"></canvas></div>
+  <div class="deck">
+    <nav aria-label="Scenes and lights">
+      <div class="row-head"><span>SCENES</span><span class="hint">Pick a world</span></div>
+      <div id="scenes" class="clip-grid scenes"></div>
+      <div class="row-head lights-head"><span>LIGHTS · <b id="scene-name">no scene yet</b></span><span class="hint">Each light lands on the next bar</span></div>
+      <div id="lights" class="clip-grid lights"></div>
+    </nav>
+    <div class="transport">
+      <label class="volume-label" for="volume">VOLUME</label>
+      <div class="fader"><input id="volume" aria-label="Master volume" type="range" min="0" max="1" step="0.01" value="0.8"><span class="ticks" aria-hidden="true"></span></div>
+      <output id="volume-value" for="volume">80%</output>
+      <div class="transport-bottom"><button id="pause" type="button" disabled aria-label="Pause or resume">Pause</button>
+        <label class="fade"><small>SCENE FADE</small><select id="fade" aria-label="Scene fade length"><option value="1">1 beat</option><option value="4" selected>1 bar</option><option value="8">2 bars</option></select></label></div>
     </div>
   </div>
-
-  <div class="mixrow">
-    <div class="field"><span class="lab">Layers</span><div class="seg" id="mode"><button type="button" data-v="0" aria-pressed="true">Add light</button><button type="button" data-v="1" aria-pressed="false">Brightest wins</button></div></div>
-    <div class="field"><span class="lab">Changes land on</span><div class="seg" id="quant"><button type="button" data-v="bar" aria-pressed="true">Next bar</button><button type="button" data-v="beat" aria-pressed="false">Next beat</button><button type="button" data-v="off" aria-pressed="false">Now</button></div></div>
-    <label class="field" for="breathe"><span class="lab">Pulse with the kick</span><input id="breathe" type="range" min="0" max="100" step="1" value="0" style="width:140px"><output id="breathe-out" for="breathe">0%</output></label>
-  </div>
-
-  <div class="deckrow">
-    <nav class="scenes" aria-label="Scenes"><h2>Scenes</h2><div class="scene-list" id="scene-list"></div></nav>
-    <section class="voicesec" aria-label="Voices on the focused deck">
-      <div class="dtabs" role="tablist" id="dtabs">
-        <button class="dtab" role="tab" type="button" data-d="0" aria-selected="true"><small>A</small><span id="tab-a">Empty</span><em id="tab-a-share"></em></button>
-        <button class="dtab" role="tab" type="button" data-d="1" aria-selected="false"><small>B</small><span id="tab-b">Empty</span><em id="tab-b-share"></em></button>
+  <footer><p id="status" role="status">Tap a scene to begin.</p><span class="help">Scenes 1–8 · Lights Q W E R · All off T · Space pauses</span></footer>
+  <details class="media-editor" id="media-editor">
+    <summary>Change clips</summary>
+    <p id="media-scene">Play a scene first, then change its clips here.</p>
+    <p>Choose a video for one light pad, or replace the scene’s music. Changes stay in this tab; reloading restores the saved setup.</p>
+    <fieldset id="media-fields" disabled>
+      <div class="media-fields">
+        <label>Light pad<select id="media-voice" aria-label="Light pad to replace"></select></label>
+        <label>Replacement video<input id="media-video" type="file" accept="video/*"></label>
+        <label>Reference image (optional)<input id="media-ref" type="file" accept="image/*"></label>
+        <label>Scene music (optional)<input id="media-music" type="file" accept="audio/*,video/mp4,video/webm"></label>
       </div>
-      <div class="music" id="music"></div>
-      <div class="pads" id="pads"></div>
-    </section>
-  </div>
-
-  <footer><p id="status" role="status">Checking the scene pack…</p>
-    <span><kbd>1</kbd>–<kbd>6</kbd> scenes · <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> voices, hold to solo · <kbd>D</kbd> switch deck · <kbd>X</kbd> fade · <kbd>M</kbd> layer mode · <kbd>Space</kbd> pause</span></footer>
-
-  <details class="notes">
-    <summary>What the measurements found</summary>
-    <p>Each take was compared with its scene's first frame. Camera drift is the largest shift seen across the take. "Adds light" is the share of change that brightens rather than darkens; near 100% means it layers cleanly. Beds are two-bar loops cut on the beat from each soundtrack and retimed to 125 BPM.</p>
-    <div class="tablewrap"><table id="facts"><thead><tr><th>Voice</th><th>Role</th><th>Camera drift</th><th>Adds light</th><th>Loop</th><th>Soundtrack tempo</th></tr></thead><tbody></tbody></table></div>
+      <p>A new video uses its first frame as the reference unless you choose an image. Use the same camera view for lights that should layer. Music stays as it is unless you replace it.</p>
+      <div class="media-actions"><button id="media-apply" type="button">Apply to this scene</button><button id="media-reset" type="button">Restore this scene</button></div>
+    </fieldset>
+    <p id="media-status" role="status">Your files stay local to this browser tab.</p>
   </details>
-  <p style="margin:0 6px;font-size:13px"><a href="README.md">Experimental mixer: local setup and changing media</a></p>
 </main>
-</div>
 <div id="pool" aria-hidden="true"></div>
 
+<script src="config.js"></script>
 <script>
 (() => {
-'use strict';
-const $ = s => document.querySelector(s);
-const HOUSE = 125, BEAT = 60 / HOUSE, BAR = 4 * BEAT, PHRASE = 2 * BAR;
-const KEYS = ['q', 'w', 'e', 'r'];
-let DATA = null, packReady = false;
-const state = { started: false, playing: false, ctx: null, master: null, T0: 0, x: 0, xAnim: null, auto: true, fadeBars: 2,
-  quant: 'bar', mode: 0, breathe: 0, focus: 0, decks: [], tint: [73, 217, 234], amb: [40, 90, 110] };
+  'use strict';
+  // ---------------- settings from config.js ----------------
+  const CFG = window.MIXER_CONFIG || { scenes: [] };
+  const ORIGINAL_SCENES = structuredClone((CFG.scenes || []).slice(0, 8));
+  const SCENES = structuredClone(ORIGINAL_SCENES);
+  const BPM = Number(CFG.bpm) || 125, BEAT = 60 / BPM, BAR = 4 * BEAT;
+  const SCENE_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8'];
+  const LIGHT_KEYS = ['q', 'w', 'e', 'r'];
+  const OFF_KEY = 't';
+  const FALLBACK_COLORS = ['#36ccea', '#a692e4', '#48a1d5', '#58c3bf', '#d3b66f'];
+  const $ = s => document.querySelector(s);
+  const statusEl = $('#status');
+  const say = msg => { statusEl.textContent = msg; };
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const smooth = u => u * u * (3 - 2 * u);
+  const rgb = hex => { const h = String(hex || '').replace('#', ''); if (!/^[0-9a-f]{6}$/i.test(h)) return '54, 204, 234'; return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)).join(', '); };
+  $('#tempo').textContent = `MIXER · ${BPM} BPM`;
 
-// ---------- helpers ----------
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const smooth = u => u * u * (3 - 2 * u);
-const now = () => state.ctx ? state.ctx.currentTime : 0;
-function rampVal(r, t) { if (!r) return 0; if (t <= r.t0) return r.from; if (t >= r.t1) return r.to; return r.from + (r.to - r.from) * smooth((t - r.t0) / (r.t1 - r.t0)); }
-function qTime(kind = state.quant, t = now() + 0.03) {
-  if (kind === 'off') return t;
-  const u = kind === 'beat' ? BEAT : BAR;
-  return state.T0 + Math.ceil((t - state.T0) / u - 1e-6) * u;
-}
-function fadeLen() { return state.quant === 'off' ? 0.15 : state.quant === 'beat' ? BEAT / 2 : BEAT; }
-let toastTimer = 0;
-function say(msg, toast = false) {
-  $('#status').textContent = msg;
-  if (toast) { const el = $('#toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600); }
-}
-const sceneName = sc => sc ? (sc.look ? `${sc.name} · ${sc.look}` : sc.name) : 'Empty';
+  // ---------------- state ----------------
+  // Which lights are on in each scene, remembered when you leave and come back.
+  const memory = SCENES.map(sc => sc.voices.slice(0, 4).map((_, j) => j === 0));
+  let ctx = null, master = null, T0 = 0, playing = false;
+  let current = null;    // the scene on screen: { index, voices, size, buffer, music }
+  let incoming = null;   // the scene fading in
+  let change = null;     // { index, from, t } while a scene is loading or waiting for its bar
+  let fade = null;       // { t0, t1 } while two scenes overlap
+  let glReady = false, editingMedia = false;
+  const localUrls = new Set(), editedScenes = new Set();
+  const waiters = [];
+  const now = () => (ctx ? ctx.currentTime : 0);
+  const nextBar = (t = now() + 0.05) => T0 + Math.ceil((t - T0) / BAR - 1e-6) * BAR;
+  // Resolves once the audio clock reaches t. Checked every frame, with a timer as a backstop.
+  const until = t => new Promise(resolve => {
+    const w = { t, resolve };
+    waiters.push(w);
+    const check = () => {
+      const i = waiters.indexOf(w); if (i < 0) return;
+      if (now() >= t) { waiters.splice(i, 1); resolve(); } else setTimeout(check, Math.max(10, (t - now()) * 1000));
+    };
+    setTimeout(check, Math.max(10, (t - now()) * 1000));
+  });
+  const rampValue = (r, t) => !r ? 0 : t <= r.t0 ? r.from : t >= r.t1 ? r.to : r.from + (r.to - r.from) * smooth((t - r.t0) / (r.t1 - r.t0));
 
-// ---------- WebGL ----------
-const canvas = $('#stage');
-const gl = canvas.getContext('webgl', { alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false });
-const VS = `attribute vec2 p; varying vec2 v; void main(){ v = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
-const FS_DECK = `precision mediump float; varying vec2 v;
-uniform sampler2D V0,V1,V2,V3,R0,R1,R2,R3; uniform float G[4]; uniform float F[4]; uniform vec2 O[4];
-uniform vec2 S; uniform float M; uniform float K; uniform float H;
-void main(){
+  // ---------------- picture: WebGL ----------------
+  // Each light is layered as: still first frame + (light video - its own first frame).
+  // Brightening adds up across lights; darkening is averaged so it never doubles.
+  const canvas = $('#stage');
+  const gl = canvas.getContext('webgl', { alpha: false, antialias: false, premultipliedAlpha: false });
+  const VS = 'attribute vec2 p; varying vec2 v; void main(){ v = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }';
+  const FS_SCENE = `precision mediump float; varying vec2 v;
+uniform sampler2D V0, V1, V2, V3, R0, R1, R2, R3; uniform float G[4]; uniform vec2 S; uniform float K;
+void main() {
   vec2 uv = 0.5 + (v - 0.5) * S;
-  vec3 plate = texture2D(R0, uv).rgb; vec3 neg = vec3(0.); vec3 pos = vec3(0.); float gs = 0.;
-  #define LAYER(VV,RR,i) { vec3 d = texture2D(VV, uv + vec2(O[i].x, -O[i].y)).rgb - texture2D(RR, uv).rgb; float g = G[i]*(1.-F[i]); gs += g; neg += g*max(-d, 0.); vec3 q = g*max(d-K, 0.)/(1.-K); pos = mix(pos+q, max(pos,q), M); }
-  LAYER(V0,R0,0) LAYER(V1,R1,1) LAYER(V2,R2,2) LAYER(V3,R3,3)
-  vec3 c = plate - neg/max(1., gs) + pos;
-  #define FULL(VV,i) { c = mix(c, texture2D(VV, uv).rgb, G[i]*F[i]); }
-  FULL(V0,0) FULL(V1,1) FULL(V2,2) FULL(V3,3)
-  gl_FragColor = vec4(clamp(c, 0., 1.) * H, 1.);
+  vec3 still = texture2D(R0, uv).rgb; vec3 darker = vec3(0.0); vec3 brighter = vec3(0.0); float total = 0.0;
+  #define LIGHT(VV, RR, i) { vec3 d = texture2D(VV, uv).rgb - texture2D(RR, uv).rgb; total += G[i]; darker += G[i] * max(-d, 0.0); brighter += G[i] * max(d - K, 0.0) / (1.0 - K); }
+  LIGHT(V0, R0, 0) LIGHT(V1, R1, 1) LIGHT(V2, R2, 2) LIGHT(V3, R3, 3)
+  gl_FragColor = vec4(clamp(still - darker / max(1.0, total) + brighter, 0.0, 1.0), 1.0);
 }`;
-const FS_MIX = `precision mediump float; varying vec2 v; uniform sampler2D A,B; uniform float X;
-void main(){ gl_FragColor = vec4(mix(texture2D(A,v).rgb, texture2D(B,v).rgb, X), 1.); }`;
-let progDeck, progMix, locD = {}, locM = {}, blackTex, quad;
-function shader(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
-function program(fs) { const p = gl.createProgram(); gl.attachShader(p, shader(gl.VERTEX_SHADER, VS)); gl.attachShader(p, shader(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
-function newTex(w, h) {
-  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  if (w) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  return t;
-}
-function newTarget(w, h) { const tex = newTex(w, h); const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0); gl.bindFramebuffer(gl.FRAMEBUFFER, null); return { tex, fb, w, h }; }
-let cueTarget, tintTarget;
-function initGL() {
-  progDeck = program(FS_DECK); progMix = program(FS_MIX);
-  for (const n of ['V0','V1','V2','V3','R0','R1','R2','R3','G','F','O','S','M','K','H']) locD[n] = gl.getUniformLocation(progDeck, n);
-  for (const n of ['A','B','X']) locM[n] = gl.getUniformLocation(progMix, n);
-  quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  blackTex = newTex(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,255]));
-  cueTarget = newTarget(256, 144); tintTarget = newTarget(32, 18);
-}
-function bind(unit, tex) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); }
-
-// ---------- audio ----------
-const bedCache = new Map();
-function bedBuffer(take) {
-  if (!bedCache.has(take)) {
-    const sc = DATA.scenes.find(s => s.beds.some(b => b.take === take)); const bed = sc.beds.find(b => b.take === take);
-    bedCache.set(take, fetch(bed.file).then(r => { if (!r.ok) throw new Error('Could not load ' + bed.file); return r.arrayBuffer(); }).then(b => state.ctx.decodeAudioData(b)));
+  const FS_MIX = 'precision mediump float; varying vec2 v; uniform sampler2D A, B; uniform float X; void main(){ gl_FragColor = vec4(mix(texture2D(A, v).rgb, texture2D(B, v).rgb, X), 1.0); }';
+  let sceneProg, mixProg, U = {}, M = {}, black, targets = [], tintTarget;
+  function compile(fs) {
+    const make = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const p = gl.createProgram(); gl.attachShader(p, make(gl.VERTEX_SHADER, VS)); gl.attachShader(p, make(gl.FRAGMENT_SHADER, fs));
+    gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p;
   }
-  return bedCache.get(take);
-}
-function makeDeckAudio(d) {
-  const ctx = state.ctx;
-  d.gain = ctx.createGain(); d.gain.gain.value = d.idx === 0 ? 1 : 0; d.gain.connect(state.master);
-  d.bus = ctx.createGain(); d.bus.connect(d.gain);
-  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 140; lp.Q.value = 0.8;
-  d.an = ctx.createAnalyser(); d.an.fftSize = 512; d.anBuf = new Float32Array(512);
-  d.bus.connect(lp); lp.connect(d.an);
-}
-function startBed(d, buf, take, t) {
-  const ctx = state.ctx; const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-  const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.02);
-  src.connect(g); g.connect(d.bus);
-  const offset = (((t - state.T0) % PHRASE) + PHRASE) % PHRASE;
-  src.start(t, offset % buf.duration);
-  if (d.bed) { const old = d.bed; old.g.gain.setValueAtTime(1, t); old.g.gain.linearRampToValueAtTime(0, t + 0.025); try { old.src.stop(t + 0.05); } catch (e) {} }
-  d.bed = { src, g, take, t };
-}
-
-// ---------- decks and voices ----------
-const pool = $('#pool');
-function makeDeck(idx) { return { idx, scene: null, sceneIdx: -1, voices: [], bed: null, solo: null, soloAmt: 0, env: 0, envPeak: 0.02, breatheMul: 1, target: null, loading: 0, pendingSwap: null, queuedScene: null }; }
-function loadImageTex(src) {
-  return new Promise((res, rej) => { const img = new Image(); img.onload = () => { const t = newTex(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img); res(t); }; img.onerror = () => rej(new Error('Could not load ' + src)); img.src = src; });
-}
-function makeVideo(def) {
-  const v = document.createElement('video'); v.muted = true; v.defaultMuted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
-  v.loop = def.kind === 'layer'; v.preload = 'auto'; v.src = def.file; pool.appendChild(v);
-  // Some browsers only fetch media once play() is called; one-shots go straight back to frame 0.
-  v.play().then(() => { if (def.kind !== 'layer') { v.pause(); v.currentTime = 0; } }).catch(() => {});
-  return v;
-}
-function videoReady(v) {
-  return new Promise((res, rej) => {
-    if (v.readyState >= 2) return res();
-    const ok = () => { off(); res(); }, bad = () => { off(); rej(new Error('Could not load ' + v.src)); };
-    const off = () => { v.removeEventListener('loadeddata', ok); v.removeEventListener('error', bad); };
-    v.addEventListener('loadeddata', ok); v.addEventListener('error', bad);
-  });
-}
-async function buildVoices(sc) {
-  const voices = sc.voices.map((def, i) => { const lv = def.kind === 'layer' ? 0.85 : 1; return { def, i, video: makeVideo(def), tex: newTex(), refTex: null, level: lv, levelS: lv, on: false, ramp: null, queued: null, shot: null, lastT: -1, uploaded: false }; });
-  await Promise.all(voices.map(async v => { v.refTex = await loadImageTex(v.def.ref); await videoReady(v.video); }));
-  return voices;
-}
-function disposeVoices(voices) {
-  for (const v of voices) { v.video.pause(); v.video.removeAttribute('src'); v.video.load(); v.video.remove(); gl.deleteTexture(v.tex); if (v.refTex) gl.deleteTexture(v.refTex); }
-}
-function playVoices(d) { for (const v of d.voices) if (v.def.kind === 'layer' && v.video.paused) v.video.play().catch(() => {}); }
-
-async function loadScene(d, sceneIdx, { fadeIn = state.auto, firstOn = true } = {}) {
-  if (d.pendingSwap) { say('A passage is playing on this deck. Wait for it to finish.', true); return; }
-  const sc = DATA.scenes[sceneIdx]; const token = ++d.loading;
-  d.queuedScene = { sceneIdx, from: now(), t: null };
-  renderScenes(); say(`Loading ${sceneName(sc)} onto Deck ${'AB'[d.idx]}…`);
-  let clearAt = now();
-  try {
-    const [voices, buf] = await Promise.all([buildVoices(sc), bedBuffer(sc.beds[0].take)]);
-    if (token !== d.loading) { disposeVoices(voices); return; }
-    const t = qTime('bar', now() + 0.08);
-    d.queuedScene.t = t; clearAt = t;
-    const old = d.voices; const oldWasAudible = share(d) > 0.01;
-    d.voices = voices; d.gen = (d.gen || 0) + 1; d.scene = sc; d.sceneIdx = sceneIdx; d.solo = null; d.bedTake = sc.beds[0].take;
-    startBed(d, buf, d.bedTake, t);
-    playVoices(d);
-    if (firstOn) { const v0 = voices.find(v => v.def.kind === 'layer'); if (v0) { v0.on = true; v0.ramp = { from: 0, to: 1, t0: t, t1: t + (oldWasAudible ? BEAT : 0.01) }; } }
-    if (old.length) setTimeout(() => disposeVoices(old), Math.max(0, (t - now()) * 1000) + 300);
-    if (fadeIn) fadeTo(d.idx, t);
-    state.focus = d.idx;
-    say(`${sceneName(sc)} on Deck ${'AB'[d.idx]} from the next bar.`, true);
-  } catch (err) { say(err.message, true); }
-  finally {
-    if (token === d.loading) setTimeout(() => { if (token === d.loading) { d.queuedScene = null; renderScenes(); } }, Math.max(0, (clearAt - now()) * 1000) + 50);
-    renderAll();
+  function texture(w, h) {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    if (w) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    return t;
   }
-}
-const share = d => d.idx === 0 ? 1 - state.x : state.x;
-
-function fadeTo(deckIdx, t = qTime('bar', now() + 0.05)) {
-  const to = deckIdx === 0 ? 0 : 1;
-  if (Math.abs(state.x - to) < 0.001 && !state.xAnim) return;
-  state.xAnim = { from: state.x, to, t0: t, t1: t + state.fadeBars * BAR };
-  for (const d of state.decks) playVoices(d);
-}
-
-function toggleVoice(d, v) {
-  if (!d.scene) return;
-  const t = qTime();
-  if (v.def.kind === 'layer') {
-    v.on = !v.on; v.queued = { from: now(), t };
-    v.ramp = { from: rampVal(v.ramp, now()), to: v.on ? 1 : 0, t0: t, t1: t + fadeLen() };
-    say(`${v.def.label} ${v.on ? 'fades in' : 'fades out'} ${state.quant === 'off' ? 'now' : 'on the next ' + state.quant}.`);
-  } else if (v.def.kind === 'move') {
-    if (v.shot) { const tb = qTime('beat'); v.ramp = { from: rampVal(v.ramp, now()), to: 0, t0: tb, t1: tb + BEAT }; v.shot.end = tb + BEAT; say('Push-in returns to the layers.'); return; }
-    v.video.pause(); v.video.currentTime = 0;
-    v.shot = { t0: t, end: t + v.def.duration_s, playing: false, fadingOut: false }; v.queued = { from: now(), t };
-    v.ramp = { from: 0, to: 1, t0: t, t1: t + BEAT };
-    say(`${v.def.label} plays once from the next ${state.quant === 'off' ? 'moment' : state.quant}, then returns.`);
-  } else if (v.def.kind === 'passage') {
-    triggerPassage(d, v, t);
+  function target(w, h) { const tex = texture(w, h), fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0); gl.bindFramebuffer(gl.FRAMEBUFFER, null); return { tex, fb, w, h }; }
+  function initGL() {
+    sceneProg = compile(FS_SCENE); mixProg = compile(FS_MIX);
+    ['V0', 'V1', 'V2', 'V3', 'R0', 'R1', 'R2', 'R3', 'G', 'S', 'K'].forEach(n => { U[n] = gl.getUniformLocation(sceneProg, n); });
+    ['A', 'B', 'X'].forEach(n => { M[n] = gl.getUniformLocation(mixProg, n); });
+    const quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    black = texture(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
+    targets = [target(1280, 720), target(1280, 720)]; tintTarget = target(32, 18);
   }
-  renderPads();
-}
-async function triggerPassage(d, v, t) {
-  if (v.shot || d.pendingSwap) return;
-  const toIdx = DATA.scenes.findIndex(s => s.id === d.scene.passage_to); const to = DATA.scenes[toIdx];
-  const asked = now();
-  v.shot = { t0: t, end: t + v.def.duration_s, playing: false, preparing: true }; v.queued = { from: asked, t };
-  say(`Passage to ${to.look} starts on the next bar. Preparing the roots…`);
-  let voices, buf;
-  try { [voices, buf] = await Promise.all([buildVoices(to), bedBuffer(to.beds[0].take)]); }
-  catch (err) { v.shot = null; v.queued = null; say(err.message, true); renderPads(); return; }
-  let t0 = t; if (now() > t0 - 0.06) t0 = qTime('bar', now() + 0.06);
-  v.video.pause(); v.video.currentTime = 0;
-  v.shot = { t0, end: t0 + v.def.duration_s, playing: false, hold: true }; v.queued = { from: asked, t: t0 };
-  v.ramp = { from: 0, to: 1, t0, t1: t0 + BEAT };
-  const tSwitch = t0 + Math.ceil(v.def.duration_s / BAR) * BAR;
-  d.pendingSwap = { t: tSwitch, sceneIdx: toIdx, voices, buf };
-  startBed(d, buf, to.beds[0].take, tSwitch);
-  say(`Passage to ${to.look}: ${Math.round(v.def.duration_s * 10) / 10} s of picture, then the roots take over on bar ${barNumber(tSwitch)}.`, true);
-  renderPads();
-}
-function applySwap(d) {
-  const p = d.pendingSwap; d.pendingSwap = null;
-  const old = d.voices; d.voices = p.voices; d.gen = (d.gen || 0) + 1; d.scene = DATA.scenes[p.sceneIdx]; d.sceneIdx = p.sceneIdx; d.solo = null; d.bedTake = d.scene.beds[0].take;
-  playVoices(d);
-  const v0 = d.voices.find(v => v.def.kind === 'layer'); if (v0) { v0.on = true; v0.ramp = { from: 0, to: 1, t0: p.t, t1: p.t + BAR }; }
-  setTimeout(() => disposeVoices(old), 200);
-  say(`Arrived at ${sceneName(d.scene)}.`, true); renderAll();
-}
-function setSolo(d, i, on) {
-  if (on) { d.solo = i; say(`Solo ${d.voices[i].def.label}. Release to bring the others back.`); }
-  else if (d.solo === i) { d.solo = null; say('Solo released.'); }
-  renderPads();
-}
-function barNumber(t) { return Math.floor((t - state.T0) / BAR + 1e-6) + 1; }
-
-// ---------- per-frame ----------
-const meterCv = $('#meters'), meterCtx = meterCv.getContext('2d');
-const cueCv = $('#cue'), cueCtx = cueCv.getContext('2d'), cueImg = cueCtx.createImageData(256, 144), cuePix = new Uint8Array(256 * 144 * 4);
-const tintPix = new Uint8Array(32 * 18 * 4);
-let lastCue = 0, lastTint = 0, lastAudioX = -1;
-function frameIndex(v) { const f = v.def.frames; return ((Math.floor(v.video.currentTime * v.def.fps) % f) + f) % f; }
-
-function updateDeck(d, t) {
-  if (d.pendingSwap && t >= d.pendingSwap.t) applySwap(d);
-  // kick envelope from this deck's bed (low-passed)
-  if (d.an && d.bed) {
-    d.an.getFloatTimeDomainData(d.anBuf); let s = 0; for (let i = 0; i < d.anBuf.length; i++) s += d.anBuf[i] * d.anBuf[i];
-    const r = Math.sqrt(s / d.anBuf.length);
-    d.env = r > d.env ? d.env + (r - d.env) * 0.7 : d.env * 0.88;
-    d.envPeak = Math.max(d.envPeak * 0.9985, d.env, 0.02);
-  }
-  const k = clamp(d.env / d.envPeak, 0, 1);
-  d.breatheMul = 1 - state.breathe + state.breathe * Math.pow(k, 1.4);
-  d.soloAmt += ((d.solo !== null ? 1 : 0) - d.soloAmt) * 0.3;
-  for (const v of d.voices) {
-    v.levelS += (v.level - v.levelS) * 0.25;
-    if (v.queued && t >= v.queued.t) v.queued = null;
-    if (v.shot) {
-      if (!v.shot.playing && v.shot.t0 && t >= v.shot.t0 - 0.04 && !v.shot.preparing) { v.shot.playing = true; v.video.currentTime = 0; v.video.play().catch(() => {}); }
-      if (v.def.kind === 'move' && v.shot.playing && !v.shot.fadingOut && t >= v.shot.end - 0.6) { v.shot.fadingOut = true; v.ramp = { from: rampVal(v.ramp, t), to: 0, t0: t, t1: Math.max(t + 0.1, v.shot.end) }; }
-      if (t >= v.shot.end + (v.shot.hold ? 10 : 0.02)) { v.shot = null; v.video.pause(); v.video.currentTime = 0; v.ramp = null; renderPads(); }
+  const bind = (unit, tex) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); };
+  function drawScene(scene, t, out) {
+    const gains = new Float32Array(4);
+    for (let i = 0; i < 4; i++) {
+      const v = scene && scene.voices[i];
+      if (v) {
+        const g = rampValue(v.ramp, t);
+        if ((g > 0.001 || v.ramp?.to > 0 || !v.uploaded) && v.video.readyState >= 2 && v.video.currentTime !== v.lastT) {
+          gl.bindTexture(gl.TEXTURE_2D, v.tex);
+          try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, v.video); v.uploaded = true; v.lastT = v.video.currentTime; } catch (e) { /* frame not ready */ }
+        }
+        gains[i] = v.uploaded ? g : 0; bind(i, v.tex); bind(4 + i, v.ref);
+      } else { bind(i, black); bind(4 + i, scene && scene.voices[0] ? scene.voices[0].ref : black); }
     }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, out.fb); gl.viewport(0, 0, out.w, out.h); gl.useProgram(sceneProg);
+    for (let i = 0; i < 4; i++) { gl.uniform1i(U['V' + i], i); gl.uniform1i(U['R' + i], 4 + i); }
+    gl.uniform1fv(U.G, gains); gl.uniform1f(U.K, 0.018);
+    const av = scene ? scene.size[0] / scene.size[1] : 16 / 9, ac = 16 / 9;   // cover-fit the clip to 16:9
+    gl.uniform2f(U.S, av > ac ? ac / av : 1, av > ac ? 1 : av / ac);
+    if (!scene) { gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); return; }
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
-}
-function gainOf(d, v, t) {
-  let g = rampVal(v.ramp, t) * v.levelS;
-  if (v.def.kind === 'layer') g *= d.breatheMul;
-  if (d.soloAmt > 0.002) { if (d.voices[d.solo] === v) g = Math.max(g, v.levelS); else g *= 1 - d.soloAmt; }
-  return g;
-}
-function renderDeck(d, t, target) {
-  const G = new Float32Array(4), F = new Float32Array(4), O = new Float32Array(8);
-  const vs = d.voices;
-  for (let i = 0; i < 4; i++) {
-    const v = vs[i];
-    if (v) {
-      const g = gainOf(d, v, t); v.g = g;
-      const want = g > 0.001 || !v.uploaded || (v.ramp && v.ramp.to > 0);
-      if (want && v.video.readyState >= 2 && v.video.currentTime !== v.lastT) {
-        gl.bindTexture(gl.TEXTURE_2D, v.tex); try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, v.video); v.uploaded = true; v.lastT = v.video.currentTime; } catch (e) {}
+  function drawMix(out, x) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, out ? out.fb : null);
+    gl.viewport(0, 0, out ? out.w : canvas.width, out ? out.h : canvas.height);
+    gl.useProgram(mixProg); bind(0, targets[0].tex); bind(1, targets[1].tex);
+    gl.uniform1i(M.A, 0); gl.uniform1i(M.B, 1); gl.uniform1f(M.X, x);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  // ---------------- media loading ----------------
+  const pool = $('#pool');
+  const musicCache = new Map();
+  function loadMusic(path) {
+    if (!musicCache.has(path)) {
+      musicCache.set(path, fetch(path).then(r => { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
+        .then(b => ctx.decodeAudioData(b))
+        .catch(() => { musicCache.delete(path); throw new Error('Could not load the scene music. Choose a playable audio file or check its path in config.js.'); }));
+    }
+    return musicCache.get(path);
+  }
+  function videoFor(path) {
+    const video = document.createElement('video');
+    video.muted = true; video.defaultMuted = true; video.loop = true; video.playsInline = true; video.preload = 'auto';
+    video.setAttribute('playsinline', ''); video.setAttribute('muted', '');
+    video.src = path; pool.appendChild(video);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => fail(), 15000);
+      const done = () => { clearTimeout(timer); video.removeEventListener('loadeddata', ok); video.removeEventListener('error', fail); };
+      const ok = () => { done(); resolve(video); };
+      const fail = () => { done(); video.pause(); video.removeAttribute('src'); video.load(); video.remove(); reject(new Error('Could not load a video. Choose a playable MP4 or WebM, or check its path in config.js.')); };
+      video.addEventListener('loadeddata', ok); video.addEventListener('error', fail);
+    });
+  }
+  function imageTexture(path) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const timer = setTimeout(() => { img.onload = img.onerror = null; img.src = ''; reject(new Error('Reference image timed out. Try another image.')); }, 15000);
+      img.onload = () => { clearTimeout(timer); let t; try { t = texture(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img); resolve(t); } catch (err) { if (t) gl.deleteTexture(t); reject(err); } };
+      img.onerror = () => { clearTimeout(timer); reject(new Error('Could not load the reference image. Choose another image or check config.js.')); };
+      img.src = path;
+    });
+  }
+  function firstFrameTexture(video) { const t = texture(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, video); return t; }
+  async function loadScene(index) {
+    const def = SCENES[index];
+    const prepared = [];
+    // Wait for every loader to settle so a failed replacement can release all resources.
+    const results = await Promise.allSettled([
+      def.music ? loadMusic(def.music) : Promise.resolve(null),
+      ...def.voices.slice(0, 4).map(async (vd) => {
+        const video = await videoFor(vd.video);
+        const v = { def: vd, video, ref: null, tex: null, ramp: null, pending: null, on: false, uploaded: false, lastT: -1 };
+        prepared.push(v);
+        v.ref = vd.ref ? await imageTexture(vd.ref) : firstFrameTexture(video);
+        v.tex = texture();
+        return v;
+      })
+    ]);
+    const failed = results.find(r => r.status === 'rejected');
+    if (failed) { release({ voices: prepared }); throw failed.reason; }
+    const voices = results.slice(1).map(r => r.value);
+    if (playing) voices.forEach(v => v.video.play().catch(() => {}));
+    const first = voices[0] ? voices[0].video : null;
+    return { index, voices, size: first ? [first.videoWidth || 16, first.videoHeight || 9] : [16, 9], buffer: results[0].value, music: null };
+  }
+  function release(scene) {
+    if (!scene) return;
+    for (const v of scene.voices) { v.video.pause(); v.video.removeAttribute('src'); v.video.load(); v.video.remove(); gl.deleteTexture(v.tex); gl.deleteTexture(v.ref); }
+  }
+
+  // ---------------- sound ----------------
+  let analyser, channels, waveData, channelData;
+  async function unlock() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain(); master.gain.value = Number($('#volume').value); master.connect(ctx.destination);
+      analyser = ctx.createAnalyser(); analyser.fftSize = 1024; master.connect(analyser); waveData = new Float32Array(analyser.fftSize);
+      const splitter = ctx.createChannelSplitter(2); master.connect(splitter);
+      channels = [0, 1].map(i => { const a = ctx.createAnalyser(); a.fftSize = 1024; splitter.connect(a, i); return a; });
+      channelData = channels.map(a => new Float32Array(a.fftSize));
+      await ctx.resume();
+      T0 = ctx.currentTime + 0.1; playing = true; $('#pause').disabled = false;
+    } else if (ctx.state === 'suspended' && playing) await ctx.resume();
+  }
+  function startMusic(scene, t, seconds) {
+    if (!scene.buffer) return;
+    const src = ctx.createBufferSource(); src.buffer = scene.buffer; src.loop = true;
+    const gain = ctx.createGain(); gain.gain.setValueAtTime(seconds > 0.01 ? 0 : 1, t); if (seconds > 0.01) gain.gain.linearRampToValueAtTime(1, t + seconds);
+    src.connect(gain); gain.connect(master);
+    const d = scene.buffer.duration; src.start(t, (((t - T0) % d) + d) % d);   // keep every loop on the same bar grid
+    scene.music = { src, gain };
+  }
+  function stopMusic(scene, t, seconds) {
+    if (!scene.music) return;
+    const { src, gain } = scene.music;
+    gain.gain.setValueAtTime(1, t); gain.gain.linearRampToValueAtTime(0, t + Math.max(seconds, 0.02));
+    try { src.stop(t + Math.max(seconds, 0.02) + 0.05); } catch (e) { /* already stopped */ }
+  }
+
+  // ---------------- actions ----------------
+  async function pressScene(index, { reload = false } = {}) {
+    if (!SCENES[index]) return false;
+    if (!glReady) { say('This browser could not start WebGL, which the mixer needs. Try Chrome or Edge with graphics acceleration enabled.'); return false; }
+    if (change || fade || (editingMedia && !reload)) { say('Let this scene change finish, then tap again.'); return false; }
+    if (!reload && current && current.index === index) { say(`${SCENES[index].name} is already playing.`); return true; }
+    const name = SCENES[index].name;
+    change = { index, from: now(), t: null };
+    syncMediaControls();
+    say(`Loading ${name}…`);
+    let scene = null;
+    try {
+      await unlock();
+      scene = await loadScene(index);
+      const t = nextBar(), seconds = current ? Number($('#fade').value) * BEAT : 0;
+      scene.voices.forEach((v, j) => { v.on = !!memory[index][j]; v.ramp = { from: v.on ? 1 : 0, to: v.on ? 1 : 0, t0: t, t1: t }; });
+      startMusic(scene, t, seconds);
+      if (current) stopMusic(current, t, seconds);
+      change.t = t; incoming = scene; fade = { t0: t, t1: t + Math.max(seconds, 0.001) };
+      say(`${name} comes in on the next bar.`);
+      await until(fade.t1);
+      release(current); current = incoming; incoming = null; fade = null;
+      say(current.voices.length ? `${name}. Tap a light to layer it.` : `${name} has no clips yet. Add some in config.js.`);
+      return true;
+    } catch (error) {
+      if (scene && scene !== current) { if (scene.music) stopMusic(scene, now(), 0.05); release(scene); }
+      incoming = null; fade = null;
+      say(error.message);
+      return false;
+    } finally { change = null; buildLights(); }
+  }
+  function toggleLight(j) {
+    if (!current || fade) { say(current ? 'Wait for the scene change to finish.' : 'Pick a scene first.'); return; }
+    const v = current.voices[j]; if (!v) return;
+    const t = nextBar(now() + 0.03);
+    v.on = !v.on; memory[current.index][j] = v.on;
+    v.ramp = { from: rampValue(v.ramp, now()), to: v.on ? 1 : 0, t0: t, t1: t + BEAT };
+    v.pending = { from: now(), t };
+    say(`${v.def.name || 'Light ' + (j + 1)} ${v.on ? 'fades in' : 'fades out'} on the next bar.`);
+  }
+  function allOff() {
+    if (!current || fade) return;
+    const t = nextBar(now() + 0.03); let any = false;
+    current.voices.forEach((v, j) => { if (v.on) { any = true; v.on = false; memory[current.index][j] = false; v.ramp = { from: rampValue(v.ramp, now()), to: 0, t0: t, t1: t + BEAT }; v.pending = { from: now(), t }; } });
+    say(any ? 'All lights fade out on the next bar, back to the still.' : 'All lights are already off.');
+  }
+
+  // ---------------- local media replacement ----------------
+  function syncMediaControls() {
+    const index = current?.index;
+    const fieldset = $('#media-fields'), select = $('#media-voice');
+    fieldset.disabled = !current || !!change || !!fade || editingMedia;
+    $('#media-scene').textContent = current ? `Editing: ${SCENES[index].name}` : 'Play a scene first, then change its clips here.';
+    const key = current ? `${index}:${current.voices.map(v => v.def.name).join('|')}` : 'empty';
+    if (select.dataset.key !== key) {
+      const previous = select.value;
+      select.replaceChildren();
+      current?.voices.forEach((v, i) => {
+        const option = document.createElement('option'); option.value = String(i); option.textContent = v.def.name || `Light ${i + 1}`; select.append(option);
+      });
+      const selected = Number.parseInt(previous, 10);
+      select.value = Number.isInteger(selected) && current?.voices[selected] ? String(selected) : '0';
+      select.dataset.key = key;
+    }
+    if (fieldset.dataset.scene !== String(index)) {
+      clearMediaInputs(); fieldset.dataset.scene = String(index);
+      $('#media-status').textContent = 'Your files stay local to this browser tab.';
+    }
+    $('#media-reset').disabled = !editedScenes.has(index);
+  }
+  function clearMediaInputs() {
+    for (const id of ['#media-video', '#media-ref', '#media-music']) $(id).value = '';
+  }
+  function localFile(file) {
+    const url = URL.createObjectURL(file); localUrls.add(url); return url;
+  }
+  function cleanLocalFiles() {
+    const used = new Set(SCENES.flatMap(sc => [sc.music, ...sc.voices.flatMap(v => [v.video, v.ref])]));
+    for (const url of localUrls) if (!used.has(url)) { URL.revokeObjectURL(url); localUrls.delete(url); musicCache.delete(url); }
+  }
+  async function replaceMedia(reset = false) {
+    const report = $('#media-status');
+    if (!current || change || fade || editingMedia) { report.textContent = 'Choose a scene and let its transition finish first.'; return; }
+    if (!playing) { report.textContent = 'Press Play before applying a media change.'; return; }
+    const index = current.index, previous = SCENES[index], next = structuredClone(reset ? ORIGINAL_SCENES[index] : previous);
+    if (!reset) {
+      const video = $('#media-video').files[0], ref = $('#media-ref').files[0], music = $('#media-music').files[0];
+      if (!video && !ref && !music) { report.textContent = 'Choose a replacement video, reference image or music file first.'; return; }
+      const voice = next.voices[Number($('#media-voice').value)];
+      if (video) { voice.video = localFile(video); voice.name = video.name.replace(/\.[^.]+$/, ''); delete voice.ref; }
+      if (ref) voice.ref = localFile(ref);
+      if (music) next.music = localFile(music);
+    }
+    editingMedia = true;
+    SCENES[index] = next;
+    syncMediaControls();
+    report.textContent = 'Preparing your media. The current scene keeps playing…';
+    try {
+      const applied = await pressScene(index, { reload: true });
+      if (applied) {
+        if (reset) editedScenes.delete(index); else editedScenes.add(index);
+        clearMediaInputs();
+        report.textContent = reset ? 'Original scene restored.' : 'Media applied. Other scenes are unchanged. Reloading the page restores the saved setup.';
+      } else {
+        SCENES[index] = previous;
+        report.textContent = `Change not applied. ${statusEl.textContent} Your previous scene is still available.`;
       }
-      G[i] = v.uploaded ? g : 0; F[i] = v.def.kind === 'layer' ? 0 : 1;
-      if (v.def.offsets) { const o = v.def.offsets[frameIndex(v)] || [0, 0]; O[i * 2] = o[0]; O[i * 2 + 1] = o[1]; }
-      bind(i, v.tex); bind(4 + i, v.refTex || blackTex);
-    } else { bind(i, blackTex); bind(4 + i, vs[0] ? vs[0].refTex : blackTex); }
-  }
-  gl.bindFramebuffer(gl.FRAMEBUFFER, target.fb); gl.viewport(0, 0, target.w, target.h);
-  gl.useProgram(progDeck);
-  ['V0','V1','V2','V3'].forEach((n, i) => gl.uniform1i(locD[n], i)); ['R0','R1','R2','R3'].forEach((n, i) => gl.uniform1i(locD[n], 4 + i));
-  gl.uniform1fv(locD.G, G); gl.uniform1fv(locD.F, F); gl.uniform2fv(locD.O, O);
-  const size = vs[0] ? vs[0].def.size : [16, 9]; const av = size[0] / size[1], ac = 16 / 9;
-  gl.uniform2f(locD.S, av > ac ? ac / av : 1, av > ac ? 1 : av / ac);
-  gl.uniform1f(locD.M, state.mode); gl.uniform1f(locD.K, 0.018); gl.uniform1f(locD.H, d.scene && vs[0] && vs[0].refTex ? 1 : 0);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-}
-function drawMix(target, aTex, bTex, x) {
-  gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.fb : null);
-  if (target) gl.viewport(0, 0, target.w, target.h); else gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.useProgram(progMix); bind(0, aTex); bind(1, bTex); gl.uniform1i(locM.A, 0); gl.uniform1i(locM.B, 1); gl.uniform1f(locM.X, x);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-}
-function sampleTint() {
-  gl.bindFramebuffer(gl.FRAMEBUFFER, tintTarget.fb); gl.readPixels(0, 0, 32, 18, gl.RGBA, gl.UNSIGNED_BYTE, tintPix);
-  let r = 0, g = 0, b = 0, best = -1, hi = [73, 217, 234];
-  for (let i = 0; i < tintPix.length; i += 4) {
-    const R = tintPix[i], G = tintPix[i + 1], B = tintPix[i + 2]; r += R; g += G; b += B;
-    const mx = Math.max(R, G, B), mn = Math.min(R, G, B), score = (mx - mn) * (mx / 255);
-    if (score > best) { best = score; hi = [R, G, B]; }
-  }
-  const n = tintPix.length / 4; const amb = [r / n, g / n, b / n];
-  // normalise the highlight to a bright, readable glow
-  const m = Math.max(...hi, 1); hi = hi.map(c => c / m * 235 + 20);
-  state.amb = state.amb.map((c, i) => c + (amb[i] - c) * 0.15);
-  state.tint = state.tint.map((c, i) => c + (hi[i] - c) * 0.15);
-  const mix = (base, c, w) => base.map((x, i) => Math.round(x * (1 - w) + c[i] * w));
-  const root = document.documentElement.style;
-  root.setProperty('--bg-a', `rgb(${mix([76, 130, 146], state.amb.map(c => c * 1.25), 0.45).join(',')})`);
-  root.setProperty('--bg-b', `rgb(${mix([22, 59, 74], state.amb.map(c => c * 0.45), 0.4).join(',')})`);
-  root.setProperty('--hi', state.tint.map(Math.round).join(','));
-}
-function drawCue(d) {
-  const lab = $('#cue-label');
-  if (!d || !d.scene) { cueCtx.fillStyle = '#06222e'; cueCtx.fillRect(0, 0, 256, 144); lab.textContent = d ? `Deck ${'AB'[d.idx]} · empty` : '—'; return; }
-  drawMix(cueTarget, d.target.tex, d.target.tex, 0);
-  gl.readPixels(0, 0, 256, 144, gl.RGBA, gl.UNSIGNED_BYTE, cuePix);
-  const row = 256 * 4;
-  for (let y = 0; y < 144; y++) cueImg.data.set(cuePix.subarray((143 - y) * row, (144 - y) * row), y * row);
-  cueCtx.putImageData(cueImg, 0, 0);
-  lab.textContent = `Deck ${'AB'[d.idx]} · ${sceneName(d.scene)}`;
-}
-function drawMeters(d, t) {
-  const r = meterCv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
-  if (meterCv.width !== Math.round(r.width * dpr)) { meterCv.width = Math.round(r.width * dpr); meterCv.height = Math.round(r.height * dpr); }
-  const c = meterCtx, W = meterCv.width / dpr, H = meterCv.height / dpr; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
-  $('#meter-label').textContent = `Deck ${'AB'[d.idx]}`;
-  if (!d.voices.length) return;
-  const n = d.voices.length, gap = 10, bw = Math.min(34, (W - gap * (n + 1)) / n), segs = 14, top = 4, h = H - 22;
-  d.voices.forEach((v, i) => {
-    const x = gap + i * (bw + gap); const e = (v.def.light[frameIndex(v)] || 0) * 0.7 + 0.3; const lvl = clamp(e * (v.g || 0), 0, 1);
-    for (let s = 0; s < segs; s++) { const on = s / segs < lvl; c.fillStyle = on ? `rgb(${v.def.colour.join(',')})` : '#244955'; c.globalAlpha = on ? 0.95 : 1; c.fillRect(x, top + h - (s + 1) * h / segs, bw, h / segs - 2); }
-    c.globalAlpha = 1; c.fillStyle = '#b8dce5'; c.font = '10px ui-monospace, monospace'; c.textAlign = 'center'; c.fillText(KEYS[i].toUpperCase(), x + bw / 2, H - 6);
-  });
-}
-
-let lastUI = 0;
-function frame() {
-  requestAnimationFrame(frame);
-  if (!state.started) return;
-  const t = now();
-  // crossfader animation and audio gains
-  if (state.xAnim) { const a = state.xAnim; if (t >= a.t1) { state.x = a.to; state.xAnim = null; } else if (t >= a.t0) state.x = a.from + (a.to - a.from) * smooth((t - a.t0) / (a.t1 - a.t0)); $('#xfader').value = Math.round(state.x * 1000); }
-  if (Math.abs(state.x - lastAudioX) > 0.001) { lastAudioX = state.x; const [A, B] = state.decks; A.gain.gain.setTargetAtTime(Math.cos(state.x * Math.PI / 2), t, 0.015); B.gain.gain.setTargetAtTime(Math.sin(state.x * Math.PI / 2), t, 0.015); }
-  for (const d of state.decks) { updateDeck(d, t); renderDeck(d, t, d.target); }
-  drawMix(null, state.decks[0].target.tex, state.decks[1].target.tex, state.x);
-  const pn = performance.now();
-  if (pn - lastTint > 120) { lastTint = pn; drawMix(tintTarget, state.decks[0].target.tex, state.decks[1].target.tex, state.x); sampleTint(); }
-  const cueDeck = state.decks[state.x < 0.5 ? 1 : 0];
-  if (pn - lastCue > 90) { lastCue = pn; drawCue(cueDeck); }
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  updateUI(t);
-}
-
-// ---------- UI ----------
-function renderScenes() {
-  const list = $('#scene-list');
-  if (!list.children.length) {
-    DATA.scenes.forEach((sc, i) => {
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'scene'; b.dataset.i = i;
-      const c = sc.voices[0].colour; b.style.setProperty('--c', c.join(','));
-      b.innerHTML = `<span class="th" style="background-image:url('${sc.plate_thumb}')"></span><span class="nm"><b>${sc.name}</b><span>${sc.look || sc.voices.length + ' voices'}${sc.look ? ' · ' + sc.voices.length + ' voices' : ''}</span></span><span class="bd"></span><span class="key">${i + 1}</span>`;
-      b.addEventListener('click', () => pickScene(i)); list.appendChild(b);
-    });
-  }
-  [...list.children].forEach((b, i) => {
-    const on = state.decks.filter(d => d.sceneIdx === i);
-    b.querySelector('.bd').innerHTML = on.map(d => `<i class="${share(d) > 0.5 ? 'air' : ''}" title="On Deck ${'AB'[d.idx]}">${'AB'[d.idx]}</i>`).join('');
-    const loading = state.decks.some(d => d.queuedScene && d.queuedScene.sceneIdx === i);
-    b.classList.toggle('loading', loading);
-    b.setAttribute('aria-label', `${sceneName(DATA.scenes[i])}${on.length ? ', on Deck ' + on.map(d => 'AB'[d.idx]).join(' and ') : ''}`);
-  });
-}
-function pickScene(i) {
-  if (!packReady || !DATA.scenes[i]) return;
-  if (!state.started) { start().then(() => pickScene(i)); return; }
-  const here = state.decks.find(d => d.sceneIdx === i);
-  if (here) {
-    state.focus = here.idx; renderAll();
-    if (state.auto && share(here) < 0.5) { fadeTo(here.idx); say(`Fading to Deck ${'AB'[here.idx]} over ${state.fadeBars} bar${state.fadeBars > 1 ? 's' : ''} from the next bar.`, true); }
-    return;
-  }
-  const d = state.decks[state.x < 0.5 ? 1 : 0];
-  loadScene(d, i);
-}
-function renderPads() {
-  const d = state.decks[state.focus]; const wrap = $('#pads'); const key = d.scene ? d.scene.id + ':' + d.gen + ':' + d.idx : 'empty:' + d.idx;
-  if (wrap.dataset.key !== key) {
-    wrap.dataset.key = key; wrap.innerHTML = '';
-    if (!d.scene) { wrap.innerHTML = `<div class="empty">Deck ${'AB'[d.idx]} is empty. Tap a scene to load it here, then fade over with the crossfader.</div>`; }
-    d.voices.forEach((v, i) => {
-      const el = document.createElement('div'); el.className = 'voice'; el.style.setProperty('--c', v.def.colour.join(','));
-      const kind = v.def.kind === 'layer' ? `Layer · ${v.def.duration_s.toFixed(1)} s loop` : v.def.kind === 'move' ? 'Plays once, full frame' : 'Plays once, then changes scene';
-      const tag = v.def.kind === 'layer' ? 'light' : v.def.kind === 'move' ? 'move' : 'passage';
-      el.innerHTML = `<button class="pad" type="button" aria-pressed="false"><span class="pt" style="background-image:url('${v.def.thumb}')"></span><span class="pk">${KEYS[i].toUpperCase()}</span><span class="tag">${tag}</span><span class="pl"><b>${v.def.label}</b><span>${kind}</span></span></button>` +
-        (v.def.kind === 'layer' ? `<label class="level"><span>Level</span><input type="range" id="lvl-${d.idx}-${i}" min="0" max="100" step="1" value="${Math.round(v.level * 100)}" aria-label="${v.def.label} level"><output>${Math.round(v.level * 100)}</output></label>` : '');
-      const pad = el.querySelector('.pad'); attachPad(pad, () => state.decks[state.focus], i);
-      const r = el.querySelector('input'); const deckIdx = d.idx;
-      if (r) r.addEventListener('input', () => { const vv = state.decks[deckIdx].voices[i]; if (vv) vv.level = r.value / 100; el.querySelector('output').textContent = r.value; });
-      wrap.appendChild(el);
-    });
-  }
-  [...wrap.querySelectorAll('.voice')].forEach((el, i) => {
-    const v = d.voices[i]; if (!v) return;
-    const lit = v.def.kind === 'layer' ? v.on : !!v.shot;
-    el.classList.toggle('on', lit); el.classList.toggle('solo', d.solo === i);
-    el.querySelector('.pad').setAttribute('aria-pressed', String(lit));
-  });
-  // music source
-  const m = $('#music');
-  if (!d.scene) m.innerHTML = '';
-  else if (d.scene.shared_audio) m.innerHTML = `<span>Music: one soundtrack shared by every voice in this scene.</span>`;
-  else {
-    m.innerHTML = `<span>Music from</span><div class="seg" id="bedseg">${d.scene.beds.map((b, i) => `<button type="button" data-take="${b.take}" aria-pressed="${b.take === d.bedTake}">${d.scene.voices[i].label}</button>`).join('')}</div><span>Each take here has its own soundtrack.</span>`;
-    m.querySelectorAll('button').forEach(b => b.addEventListener('click', async () => {
-      const take = b.dataset.take; if (take === d.bedTake) return; const buf = await bedBuffer(take); const tb = qTime('bar'); startBed(d, buf, take, tb); d.bedTake = take;
-      m.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.take === take))); say(`Music switches to ${b.textContent} on the next bar.`);
-    }));
-  }
-}
-function attachPad(pad, getDeck, i) {
-  let timer = 0, held = false, down = false;
-  pad.addEventListener('pointerdown', e => { if (e.button > 0) return; if (!state.started) { start(); return; } down = true; held = false; pad.setPointerCapture(e.pointerId); timer = setTimeout(() => { held = true; setSolo(getDeck(), i, true); }, 300); });
-  const up = () => { if (!down) return; down = false; clearTimeout(timer); const d = getDeck(); if (held) setSolo(d, i, false); else if (d.voices[i]) toggleVoice(d, d.voices[i]); };
-  pad.addEventListener('pointerup', up);
-  pad.addEventListener('pointercancel', () => { down = false; clearTimeout(timer); if (held) setSolo(getDeck(), i, false); });
-  pad.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { const d = getDeck(); if (d.voices[i]) toggleVoice(d, d.voices[i]); } } });
-}
-function renderAll() {
-  const [A, B] = state.decks;
-  $('#dk-a').textContent = sceneName(A.scene); $('#dk-b').textContent = sceneName(B.scene);
-  $('#tab-a').textContent = sceneName(A.scene); $('#tab-b').textContent = sceneName(B.scene);
-  document.querySelectorAll('.dtab').forEach(b => b.setAttribute('aria-selected', String(+b.dataset.d === state.focus)));
-  renderScenes(); renderPads();
-}
-function updateUI(t) {
-  const rel = t - state.T0, beat = Math.floor(rel / BEAT + 1e-6), inPhrase = ((beat % 8) + 8) % 8;
-  const dots = $('#beats').children;
-  for (let i = 0; i < 8; i++) { dots[i].classList.toggle('on', i === inPhrase && rel >= 0); dots[i].classList.toggle('down', i % 4 === 0); }
-  const barIdx = Math.floor(rel / BAR + 1e-6);
-  $('#bar-label').textContent = `Bar ${((barIdx % 2) + 2) % 2 + 1} of 2`; $('#clock-bar').textContent = `bar ${barIdx + 1}`;
-  const [A, B] = state.decks;
-  $('#air-a').textContent = `A ${Math.round((1 - state.x) * 100)}%`; $('#air-b').textContent = `B ${Math.round(state.x * 100)}%`;
-  $('#tab-a-share').textContent = `${Math.round((1 - state.x) * 100)}%`; $('#tab-b-share').textContent = `${Math.round(state.x * 100)}%`;
-  $('#fade-now').textContent = `Fade to ${state.x < 0.5 ? 'B' : 'A'}`;
-  // pads: energy glow and queue progress
-  const d = state.decks[state.focus];
-  const pads = $('#pads').querySelectorAll('.voice');
-  pads.forEach((el, i) => {
-    const v = d.voices[i]; if (!v) return;
-    const e = clamp((v.def.light[frameIndex(v)] || 0) * Math.min(1, (v.g || 0) * 1.3), 0, 1);
-    el.style.setProperty('--e', e.toFixed(3));
-    let q = 0; if (v.queued) { q = clamp((t - v.queued.from) / Math.max(0.05, v.queued.t - v.queued.from), 0, 1); }
-    else if (v.shot && v.shot.playing) q = clamp((t - v.shot.t0) / (v.def.duration_s), 0, 1);
-    el.style.setProperty('--q', q.toFixed(3)); el.classList.toggle('queued', !!v.queued);
-    const lit = v.def.kind === 'layer' ? v.on : !!v.shot; if (el.classList.contains('on') !== lit) renderPads();
-  });
-  // scenes: glow by audible share, progress when queued
-  const items = $('#scene-list').children;
-  for (let i = 0; i < items.length; i++) {
-    let lvl = 0, q = 0;
-    for (const dk of state.decks) {
-      if (dk.sceneIdx === i) lvl = Math.max(lvl, share(dk));
-      if (dk.queuedScene && dk.queuedScene.sceneIdx === i) q = dk.queuedScene.t ? clamp((t - dk.queuedScene.from) / Math.max(0.05, dk.queuedScene.t - dk.queuedScene.from), 0, 1) : 0.08;
+    } finally {
+      editingMedia = false; cleanLocalFiles(); syncMediaControls();
     }
-    items[i].style.setProperty('--lvl', lvl.toFixed(2)); items[i].style.setProperty('--q', q.toFixed(3));
   }
-  if (performance.now() - lastUI > 400) { lastUI = performance.now(); renderScenes(); }
-  drawMeters(d, t);
-}
+  $('#media-apply').addEventListener('click', () => replaceMedia());
+  $('#media-reset').addEventListener('click', () => replaceMedia(true));
+  window.addEventListener('beforeunload', () => { for (const url of localUrls) URL.revokeObjectURL(url); });
 
-// ---------- start ----------
-let starting = null;
-function start() {
-  if (!packReady) return Promise.resolve();
-  if (starting) return starting;
-  starting = (async () => {
-    if (!gl) { say('This browser could not start WebGL, which the mixer needs. Try current Chrome, Edge, Firefox or Safari.', true); throw new Error('no webgl'); }
-    const ctx = state.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const resumed = ctx.resume();
-    state.master = ctx.createGain(); state.master.gain.value = +$('#volume').value; state.master.connect(ctx.destination);
-    state.decks.forEach(makeDeckAudio);
-    $('#start').hidden = true; $('#sub-status').textContent = 'Loading Stellar Tide Court…';
-    await resumed;
-    state.T0 = ctx.currentTime + 0.25; state.started = true; state.playing = true;
-    $('#poster').hidden = true; $('#onair').hidden = false; $('#pause').disabled = false;
-    const court = DATA.scenes.findIndex(s => s.id === 'court'), roots = DATA.scenes.findIndex(s => s.id === 'grove-roots');
-    await loadScene(state.decks[0], court, { fadeIn: false });
-    loadScene(state.decks[1], roots, { fadeIn: false }).then(() => { state.focus = 0; renderAll(); say('Deck A is on air. Deck B is cued with Ancient Grove Roots: watch it in the cue window, then fade over.'); });
-    $('#sub-status').textContent = 'Playing.';
-  })();
-  return starting;
-}
-function pauseToggle() {
-  if (!state.started) return;
-  if (state.playing) { state.ctx.suspend(); state.decks.forEach(d => d.voices.forEach(v => v.video.pause())); state.playing = false; $('#pause').textContent = 'Play'; say('Paused.'); }
-  else { state.ctx.resume(); state.decks.forEach(d => { playVoices(d); d.voices.forEach(v => { if (v.shot && v.shot.playing) v.video.play().catch(() => {}); }); }); state.playing = true; $('#pause').textContent = 'Pause'; say('Playing.'); }
-}
+  // ---------------- pads ----------------
+  const scenesEl = $('#scenes'), lightsEl = $('#lights');
+  function pad({ name, key, mode, color, label }) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pad'; b.style.setProperty('--pad', rgb(color));
+    b.innerHTML = '<span class="pad-name"></span><span class="pad-key"></span><span class="pad-mode"></span>';
+    b.querySelector('.pad-name').textContent = name; b.querySelector('.pad-key').textContent = key.toUpperCase(); b.querySelector('.pad-mode').textContent = mode;
+    b.setAttribute('aria-label', `${label || name}, key ${key.toUpperCase()}`); b.setAttribute('aria-pressed', 'false');
+    return b;
+  }
+  scenesEl.style.setProperty('--count', Math.max(SCENES.length, 1));
+  SCENES.forEach((sc, i) => {
+    const b = pad({ name: sc.name, key: SCENE_KEYS[i], mode: `${sc.voices.length} light${sc.voices.length === 1 ? '' : 's'}`, color: sc.voices[0]?.color || FALLBACK_COLORS[i % 5] });
+    b.addEventListener('click', () => pressScene(i)); scenesEl.append(b);
+  });
+  if (!SCENES.length) say('No scenes found. Add scenes in config.js, then reload.');
+  function buildLights() {
+    lightsEl.innerHTML = '';
+    const scene = current;
+    $('#scene-name').textContent = scene ? SCENES[scene.index].name : 'no scene yet';
+    for (let j = 0; j < 4; j++) {
+      const v = scene && scene.voices[j];
+      const b = pad({ name: v ? (v.def.name || `Light ${j + 1}`) : '—', key: LIGHT_KEYS[j], mode: 'Light', color: v ? (v.def.color || FALLBACK_COLORS[j]) : '#9ab5c2' });
+      if (!v) b.disabled = true;
+      b.addEventListener('click', () => toggleLight(j)); lightsEl.append(b);
+    }
+    const off = pad({ name: 'All off', key: OFF_KEY, mode: 'Back to the still', color: '#9ab5c2', label: 'All lights off' });
+    off.disabled = !scene; off.addEventListener('click', allOff); lightsEl.append(off);
+    syncMediaControls();
+  }
+  buildLights();
+  function updatePads(t) {
+    [...scenesEl.children].forEach((b, i) => {
+      const live = (current && current.index === i && !fade) || (fade && incoming && incoming.index === i && t >= fade.t0);
+      b.setAttribute('aria-pressed', String(!!live));
+      const waiting = change && change.index === i && !(fade && t >= fade.t1);
+      b.classList.toggle('pending', !!waiting);
+      b.style.setProperty('--progress', waiting && change.t ? clamp((t - change.from) / Math.max(0.05, change.t - change.from), 0, 1) : 0);
+      b.disabled = !!(change && change.index !== i);
+    });
+    const lights = [...lightsEl.children];
+    let offPending = false;
+    (current ? current.voices : []).forEach((v, j) => {
+      const b = lights[j]; if (!b) return;
+      if (v.pending && t >= v.pending.t) v.pending = null;
+      b.setAttribute('aria-pressed', String(rampValue(v.ramp, t) > 0.5));
+      b.classList.toggle('pending', !!v.pending);
+      b.style.setProperty('--progress', v.pending ? clamp((t - v.pending.from) / Math.max(0.05, v.pending.t - v.pending.from), 0, 1) : 0);
+      if (v.pending && !v.on) offPending = true;
+    });
+    if (lights[4]) lights[4].classList.toggle('pending', offPending && current.voices.every(v => !v.on));
+    const beat = Math.floor((t - T0) / BEAT + 1e-6);
+    [...$('#beats').children].forEach((d, i) => d.classList.toggle('on', ctx && t >= T0 && (((beat % 4) + 4) % 4) === i));
+  }
 
-// ---------- controls ----------
-function seg(id, fn) { const el = $(id); el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { el.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); fn(b.dataset.v); })); }
-seg('#mode', v => { state.mode = +v; say(+v ? 'Brightest wins: each pixel shows the brightest voice, so stacked lights never blow out.' : 'Add light: voices sum, so overlapping light gets brighter.'); });
-seg('#quant', v => { state.quant = v; say(v === 'off' ? 'Changes happen as soon as you press.' : `Changes wait for the next ${v}.`); });
-$('#breathe').addEventListener('input', e => { state.breathe = e.target.value / 100; $('#breathe-out').textContent = e.target.value + '%'; });
-$('#volume').addEventListener('input', e => { $('#volume-out').textContent = Math.round(e.target.value * 100) + '%'; if (state.master) state.master.gain.setTargetAtTime(+e.target.value, now(), 0.02); });
-$('#xfader').addEventListener('input', e => { state.xAnim = null; state.x = e.target.value / 1000; state.decks.forEach(playVoices); });
-$('#auto').addEventListener('click', e => { state.auto = !state.auto; e.currentTarget.setAttribute('aria-pressed', String(state.auto)); say(state.auto ? 'Auto fade on: a newly loaded scene fades in by itself.' : 'Auto fade off: new scenes wait on the cue deck until you fade.'); });
-$('#fade-bars').addEventListener('change', e => { state.fadeBars = +e.target.value; });
-$('#fade-now').addEventListener('click', () => { if (!state.started) return start(); const to = state.x < 0.5 ? 1 : 0; fadeTo(to); say(`Fading to Deck ${'AB'[to]} over ${state.fadeBars} bar${state.fadeBars > 1 ? 's' : ''} from the next bar.`, true); });
-$('#pause').addEventListener('click', pauseToggle);
-$('#start').addEventListener('click', () => start());
-document.querySelectorAll('.dtab').forEach(b => b.addEventListener('click', () => { if (!packReady) return; state.focus = +b.dataset.d; renderAll(); }));
-const keyHold = {};
-document.addEventListener('keydown', e => {
-  if (e.target.closest('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
-  const k = e.key.toLowerCase();
-  if ((k === ' ' || k === 'enter') && e.target.closest('button')) return;
-  if (k === ' ') { e.preventDefault(); if (!e.repeat) (state.started ? pauseToggle() : start()); return; }
-  if (e.repeat) return;
-  if (/^[1-6]$/.test(k)) { pickScene(+k - 1); return; }
-  if (!state.started) return;
-  if (k === 'x') { $('#fade-now').click(); return; }
-  if (k === 'd') { state.focus = 1 - state.focus; renderAll(); return; }
-  if (k === 'm') { const b = $('#mode').querySelectorAll('button')[1 - state.mode]; b.click(); return; }
-  const i = KEYS.indexOf(k);
-  if (i >= 0) { const d = state.decks[state.focus]; if (!d.voices[i]) return; keyHold[k] = { held: false, timer: setTimeout(() => { keyHold[k].held = true; setSolo(d, i, true); }, 300), d }; }
-});
-document.addEventListener('keyup', e => {
-  const k = e.key.toLowerCase(); const h = keyHold[k]; if (!h) return; delete keyHold[k]; clearTimeout(h.timer);
-  const i = KEYS.indexOf(k); if (h.held) setSolo(h.d, i, false); else if (h.d.voices[i]) toggleVoice(h.d, h.d.voices[i]);
-});
+  // ---------------- colour from the picture ----------------
+  const tintPixels = new Uint8Array(32 * 18 * 4);
+  let ambient = [40, 90, 110], glow = [73, 217, 234], lastTint = 0;
+  function sampleTint(x) {
+    drawMix(tintTarget, x); gl.readPixels(0, 0, 32, 18, gl.RGBA, gl.UNSIGNED_BYTE, tintPixels);
+    let r = 0, g = 0, b = 0, best = -1, hi = glow;
+    for (let i = 0; i < tintPixels.length; i += 4) {
+      const R = tintPixels[i], G = tintPixels[i + 1], B = tintPixels[i + 2]; r += R; g += G; b += B;
+      const mx = Math.max(R, G, B), score = (mx - Math.min(R, G, B)) * mx; if (score > best) { best = score; hi = [R, G, B]; }
+    }
+    const n = tintPixels.length / 4, peak = Math.max(...hi, 1);
+    ambient = ambient.map((c, i) => c + ([r / n, g / n, b / n][i] - c) * 0.15);
+    glow = glow.map((c, i) => c + (hi[i] / peak * 235 + 20 - c) * 0.15);
+    const mix = (base, c, w) => base.map((v, i) => Math.round(v * (1 - w) + c[i] * w)).join(', ');
+    const root = document.documentElement.style;
+    root.setProperty('--bg-a', `rgb(${mix([76, 130, 146], ambient.map(c => c * 1.25), 0.4)})`);
+    root.setProperty('--bg-b', `rgb(${mix([22, 59, 74], ambient.map(c => c * 0.45), 0.35)})`);
+    root.setProperty('--glow', glow.map(Math.round).join(', '));
+  }
 
-// ---------- layout: on phones the cue preview rides on the stage as a corner window ----------
-const narrow = matchMedia('(max-width: 720px)');
-function placeCue() {
-  const panel = $('#cue-panel'), side = $('.side'), stage = $('.stage-wrap');
-  if (narrow.matches) { if (panel.parentNode !== stage) stage.appendChild(panel); panel.classList.add('pip'); }
-  else { if (panel.parentNode !== side) side.insertBefore(panel, side.children[1]); panel.classList.remove('pip'); }
-}
-narrow.addEventListener ? narrow.addEventListener('change', placeCue) : narrow.addListener(placeCue);
-placeCue();
-
-// ---------- boot ----------
-function facts() {
-  const tb = $('#facts tbody');
-  DATA.scenes.forEach(sc => sc.voices.forEach(v => {
-    const bed = sc.beds.find(b => b.take === v.take) || (sc.shared_audio ? sc.beds[0] : null);
-    const role = v.kind === 'layer' ? 'Light layer' : v.kind === 'move' ? 'Camera move' : 'Passage';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${sceneName(sc)} · ${v.label}</td><td>${role}</td><td class="n">${v.kind === 'layer' ? v.drift_max_px.toFixed(1) + ' px' : 'moves by design'}</td><td class="n">${v.kind === 'layer' ? Math.round(v.adds_light_share * 100) + '%' : '—'}</td><td>${v.loop_note}</td><td class="n">${bed ? bed.bpm.toFixed(1) + ' BPM' + (sc.shared_audio && bed.take !== v.take ? ' (shared)' : '') : '—'}</td>`;
-    tb.appendChild(tr);
+  // ---------------- audio feedback (from the original jukebox) ----------------
+  const history = new Float32Array(180), meterLevels = [0, 0];
+  const surfaces = ['meters', 'scope', 'ribbon'].map(id => { const c = document.getElementById(id); return { canvas: c, ctx: c.getContext('2d'), width: 0, height: 0 }; });
+  const observer = new ResizeObserver(() => surfaces.forEach(s => {
+    const rect = s.canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+    s.width = rect.width; s.height = rect.height; s.canvas.width = Math.round(rect.width * dpr); s.canvas.height = Math.round(rect.height * dpr); s.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }));
-}
-async function boot() {
-  if (location.protocol === 'file:') throw new Error('Open this through the local server described in mixer/README.md, not by double-clicking the HTML.');
-  const response = await fetch('data.json');
-  if (!response.ok) throw new Error('Missing mixer/data.json. Copy the complete Claude scene pack into mixer/, keeping its folder structure, then reload.');
-  let data;
-  try { data = await response.json(); }
-  catch { throw new Error('data.json is not valid JSON. Recover the original scene pack or correct the file, then reload.'); }
-  if (!Array.isArray(data.scenes) || !data.scenes.length) throw new Error('data.json needs a non-empty scenes array.');
-  for (const id of ['court', 'grove-roots']) {
-    if (!data.scenes.some(sc => sc.id === id)) throw new Error(`This imported study expects a scene named "${id}" in data.json. Recover the original pack before changing its layout.`);
-  }
-  const assets = new Set();
-  for (const sc of data.scenes) {
-    if (!Array.isArray(sc.voices) || sc.voices.length < 1 || sc.voices.length > 4 || !Array.isArray(sc.beds) || !sc.beds.length) {
-      throw new Error(`Scene ${sc.id}: expected 1–4 voices and at least one audio bed.`);
+  surfaces.forEach(s => observer.observe(s.canvas));
+  function drawFeedback() {
+    const live = ctx && ctx.state === 'running' && (current || incoming);
+    let rms = 0;
+    if (analyser && live) { analyser.getFloatTimeDomainData(waveData); for (const x of waveData) rms += x * x; rms = Math.sqrt(rms / waveData.length); } else if (waveData) waveData.fill(0);
+    history.copyWithin(0, 1); history[history.length - 1] = Math.min(1, rms * 3);
+    surfaces.forEach(s => s.ctx.clearRect(0, 0, s.width, s.height));
+    const m = surfaces[0], c = m.ctx, w = m.width, h = m.height;
+    if (w && h) {
+      const top = 20, height = Math.max(20, h - 48), count = 26;
+      for (let ch = 0; ch < 2; ch++) {
+        let peak = 0;
+        if (channels && live) { channels[ch].getFloatTimeDomainData(channelData[ch]); for (const x of channelData[ch]) peak = Math.max(peak, Math.abs(x)); }
+        const level = clamp((20 * Math.log10(Math.max(peak, 0.001)) + 48) / 48, 0, 1);
+        meterLevels[ch] = Math.max(level, meterLevels[ch] * 0.88);
+        const x = w * (ch ? 0.52 : 0.22), bar = Math.max(9, w * 0.12);
+        for (let i = 0; i < count; i++) { c.fillStyle = i / count < meterLevels[ch] ? (ch ? '#f1d785' : '#52dfef') : '#244955'; c.fillRect(x, top + height - (i + 1) * height / count, bar, Math.max(2, height / count - 3)); }
+        c.fillStyle = '#c4dfe5'; c.font = '10px system-ui'; c.textAlign = 'center'; c.fillText(ch ? 'R' : 'L', x + bar / 2, h - 12);
+      }
+      c.fillStyle = '#a7c7d1'; c.font = '9px system-ui'; c.textAlign = 'left';
+      [0, -12, -24, -36, -48].forEach((v, i) => c.fillText(String(v), w * 0.77, top + 5 + i * (height - 5) / 4));
     }
-    const paths = [sc.plate_thumb, ...sc.voices.flatMap(v => [v.file, v.ref, v.thumb]), ...sc.beds.map(b => b.file)];
-    if (paths.some(path => typeof path !== 'string' || !path.trim())) throw new Error(`Scene ${sc.id}: a video, image or audio path is missing.`);
-    paths.forEach(path => assets.add(path));
+    const sc = surfaces[1];
+    if (sc.width && sc.height) {
+      const c2 = sc.ctx, w2 = sc.width, h2 = sc.height;
+      c2.strokeStyle = '#3e6978'; c2.lineWidth = 0.5; c2.beginPath(); c2.moveTo(12, h2 / 2); c2.lineTo(w2 - 12, h2 / 2); c2.stroke();
+      if (waveData && live) { c2.strokeStyle = '#78e7ed'; c2.lineWidth = 1.4; c2.beginPath(); for (let i = 0; i < 256; i++) { const x = 12 + i / 255 * (w2 - 24), y = h2 / 2 + waveData[i * 4] * (h2 * 0.4); if (i) c2.lineTo(x, y); else c2.moveTo(x, y); } c2.stroke(); }
+    }
+    const r = surfaces[2];
+    for (let i = 0; i < history.length; i++) {
+      const x = 10 + i / history.length * (r.width - 20), amp = Math.max(1, history[i] * (r.height - 10));
+      r.ctx.fillStyle = i / history.length > 0.7 ? '#efdc9d' : '#62dce9'; r.ctx.globalAlpha = history[i] > 0.005 ? 0.9 : 0.2;
+      r.ctx.fillRect(x, (r.height - amp) / 2, Math.max(1, (r.width - 20) / history.length - 2), amp);
+    }
+    r.ctx.globalAlpha = 1;
   }
-  // Check availability before enabling playback; do not download full videos here.
-  const missing = (await Promise.all([...assets].map(async path => {
-    try { return (await fetch(path, { method: 'HEAD' })).ok ? null : path; }
-    catch { return path; }
-  }))).filter(Boolean);
-  if (missing.length) throw new Error(`Missing or inaccessible media (${missing.length}): ${missing.slice(0,3).join(', ')}${missing.length > 3 ? ' …' : ''}. Restore the scene pack, then reload.`);
-  if (!gl) throw new Error('WebGL is unavailable. Try Chrome or Edge with graphics acceleration enabled.');
-  initGL();
-  DATA = data;
-  state.decks = [makeDeck(0), makeDeck(1)];
-  for (const d of state.decks) d.target = gl ? newTarget(1280, 720) : null;
-  const court = DATA.scenes.find(s => s.id === 'court'); $('#poster').style.backgroundImage = `url('${court.plate_thumb}')`;
-  renderAll(); facts();
-  packReady = true;
-  $('#start').disabled = false;
-  $('#start strong').textContent = 'Mix the worlds.';
-  $('#start span').textContent = 'Two decks · light voices · beat-locked changes';
-  $('#start em').textContent = 'Start with sound';
-  $('#sub-status').textContent = 'Scene pack ready. Press start to hear it.';
-  say('Tap a pad to toggle a voice. Hold it to solo.');
+
+  // ---------------- frame loop ----------------
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let lastFeedback = 0;
+  function frame(ms) {
+    requestAnimationFrame(frame);
+    const t = now();
+    for (let i = waiters.length - 1; i >= 0; i--) if (t >= waiters[i].t) { waiters[i].resolve(); waiters.splice(i, 1); }
+    if (glReady) {
+      drawScene(current, t, targets[0]);
+      if (incoming) drawScene(incoming, t, targets[1]);
+      const x = fade ? (current ? clamp((t - fade.t0) / (fade.t1 - fade.t0), 0, 1) : (t >= fade.t0 ? 1 : 0)) : 0;
+      drawMix(null, incoming ? x : 0);
+      if ((current || incoming) && ms - lastTint > 150) { lastTint = ms; sampleTint(incoming ? x : 0); }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      $('#empty').hidden = !!(current || (incoming && fade && t >= fade.t0));
+    }
+    updatePads(t);
+    if (!document.hidden && ms - lastFeedback > (reducedMotion.matches ? 150 : 33)) { lastFeedback = ms; drawFeedback(); }
+  }
+
+  // ---------------- transport and keys ----------------
+  const volume = $('#volume');
+  volume.addEventListener('input', () => {
+    volume.style.setProperty('--volume', `${Number(volume.value) * 100}%`);
+    $('#volume-value').textContent = `${Math.round(Number(volume.value) * 100)}%`;
+    if (master) master.gain.setTargetAtTime(Number(volume.value), ctx.currentTime, 0.02);
+  });
+  const allVideos = () => [current, incoming].filter(Boolean).flatMap(s => s.voices.map(v => v.video));
+  async function togglePause() {
+    if (!ctx) return;
+    if (playing) { await ctx.suspend(); allVideos().forEach(v => v.pause()); playing = false; $('#pause').textContent = 'Play'; say('Paused.'); }
+    else { playing = true; await ctx.resume(); allVideos().forEach(v => v.play().catch(() => {})); $('#pause').textContent = 'Pause'; say('Playing.'); }
+  }
+  $('#pause').addEventListener('click', togglePause);
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('input, select, textarea') || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+    const k = e.key.toLowerCase();
+    if (k === ' ') { if (e.target.closest('button')) return; e.preventDefault(); togglePause(); return; }
+    const s = SCENE_KEYS.indexOf(k); if (s >= 0) { e.preventDefault(); pressScene(s); return; }
+    const l = LIGHT_KEYS.indexOf(k); if (l >= 0) { e.preventDefault(); toggleLight(l); return; }
+    if (k === OFF_KEY) { e.preventDefault(); allOff(); }
+  });
+
+  if (gl) { try { initGL(); glReady = true; } catch (error) { say(`WebGL setup failed: ${error.message}`); } }
+  else say('This browser could not start WebGL, which the mixer needs. Try current Chrome, Edge or Firefox.');
   requestAnimationFrame(frame);
-}
-boot().catch(err => {
-  packReady = false;
-  $('#start').disabled = true;
-  $('#start strong').textContent = 'Scene pack not ready';
-  $('#start span').textContent = 'See the message below the controls.';
-  $('#start em').textContent = 'Setup instructions below';
-  $('#sub-status').textContent = 'Setup needed.';
-  say(err.message);
-});
 })();
 </script>
-
-</body></html>
+</body>
+</html>

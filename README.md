@@ -2,7 +2,7 @@
 
 A tactile browser instrument for playing visual music. Work in progress.
 
-**Experimental mixer branch:** [setup and media guide](mixer/README.md). Claude's two-deck study lives in `mixer/`. Its companion scene pack must be restored before playback; the startup screen explains missing files. Run the static server and open `/mixer/` to test it.
+**Experimental mixer branch:** [setup and media guide](mixer/README.md). The supplied six-scene mixer lives in `mixer/`, with a **Change clips** panel for temporary local video/music swaps. Copy the media folder from KP's ZIP into `mixer/`, run the static server, and open `/mixer/`. The earlier two-deck study is preserved in `mixer/archive/`.
 
 **Omni prototype:** this branch adds a separate [ten-pad Reactor experiment](omni/README.md) in `omni/`. The original single-file Jukebox below is unchanged. Start with the prototype's local setup and Play loops mode.
 
