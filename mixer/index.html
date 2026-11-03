@@ -1,649 +1,408 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pixel Rhythms — Mixer</title>
-  <style>
-* { box-sizing: border-box; }
-[hidden] { display: none !important; }
-:root { color-scheme: light; font-family: 'Segoe UI', system-ui, sans-serif; color: #164256; --bg-a: #4c8292; --bg-b: #163b4a; --glow: 73, 217, 234; }
-body { margin: 0; min-height: 100vh; padding: 24px; background: radial-gradient(ellipse at 50% 0%, var(--bg-a), var(--bg-b) 75%); transition: background .8s; }
-main { max-width: 1200px; margin: auto; padding: 22px; border: 1px solid #f1fdff; border-radius: 32px; background: linear-gradient(120deg, #dceef4ee, #a9cad8ed 48%, #dfedf4ee); box-shadow: inset 0 0 0 3px #ffffff65, inset 0 0 0 6px #557b8933, 0 22px 65px #041e3266, 0 0 60px rgba(var(--glow), .16); }
-header { display: flex; justify-content: space-between; align-items: center; padding: 2px 8px 20px; gap: 12px; }
-h1 { font-size: 17px; font-weight: 500; letter-spacing: .34em; margin: 0; }
-.edition { font-size: 10px; letter-spacing: .22em; display: flex; align-items: center; gap: 12px; }
-.beats { display: inline-flex; gap: 5px; }
-.beats i { width: 8px; height: 8px; border-radius: 50%; background: #54717b44; }
-.beats i.on { background: #2fc6dc; box-shadow: 0 0 7px #33cfff; }
-.beats i.on:first-child { background: #e3b84f; box-shadow: 0 0 7px #eabb57; }
-.screen-row, .deck { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 16px; }
-.inset { border: 1px solid #e9fbff; border-radius: 17px; background: linear-gradient(130deg, #092d3c, #123f50); box-shadow: 0 0 0 2px #37637577, inset 0 2px 7px #001823; overflow: hidden; }
-.stage { position: relative; aspect-ratio: 16/9; background: #06222e; box-shadow: 0 0 0 2px #37637577, inset 0 2px 7px #001823, 0 0 30px rgba(var(--glow), .2); }
-#stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; color: #b8dce5; gap: 12px; background: radial-gradient(ellipse at 50% 20%, #235970, #082733 75%); }
-.empty strong { font-weight: 300; font-size: clamp(20px, 3vw, 38px); letter-spacing: .06em; }
-.empty span { font-size: 12px; letter-spacing: .1em; }
-.side { display: grid; grid-template-rows: 2fr 1fr; gap: 14px; min-height: 0; }
-canvas.feedback { display: block; width: 100%; height: 100%; }
-.meters, .scope { position: relative; min-height: 0; }
-.ribbon { height: 44px; margin: 16px 0; border-radius: 14px; }
-.row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 0 4px 8px; font-size: 11px; letter-spacing: .2em; }
-.row-head b { font-weight: 600; letter-spacing: .06em; }
-.row-head .hint { letter-spacing: .04em; color: #33566a; font-size: 11px; }
-.lights-head { margin-top: 14px; }
-.clip-grid { display: grid; gap: 12px; }
-.scenes { grid-template-columns: repeat(var(--count, 6), minmax(0, 1fr)); }
-.lights { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.pad { position: relative; text-align: left; min-width: 0; padding: 14px; display: flex; flex-direction: column; justify-content: flex-end; border: 1px solid #f1fdff; border-radius: 20px; background: radial-gradient(ellipse at 50% 65%, rgba(var(--pad), .64), rgba(var(--pad), .18) 75%), linear-gradient(140deg, #f6fdffbb, #ffffff22 40%, #e2f4ff99); box-shadow: 0 0 0 2px #42677888, inset 0 0 0 3px #edfcff99, inset 0 5px 7px #ffffffce, inset 0 -5px 9px #51728b44, 0 5px 9px #153d5426; transition: box-shadow .15s, transform .1s, filter .15s; }
-.scenes .pad { aspect-ratio: 1.7; }
-.scenes .pad-name { white-space: normal; line-height: 1.15; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: clamp(11px, 1.15vw, 14px); }
-.lights .pad { aspect-ratio: 1.22; }
-.pad:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); }
-.pad:not(:disabled):active { transform: translateY(2px); }
-.pad[aria-pressed=true] { background: radial-gradient(ellipse at 50% 65%, rgba(var(--pad), .95), rgba(var(--pad), .5) 75%), linear-gradient(140deg, #fff, #ffffff33); box-shadow: 0 0 0 2px #1e738888, inset 0 0 0 3px #e6ffff, inset 0 0 20px #ffffffa6, 0 0 18px rgba(var(--pad), .75); }
-.pad-name { font-size: clamp(12px, 1.4vw, 16px); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pad-key { position: absolute; top: 12px; left: 14px; font-size: 10px; opacity: .6; }
-.pad-mode { font-size: 9px; letter-spacing: .09em; opacity: .65; margin-top: 3px; text-transform: uppercase; }
-.pad::after { content: ''; position: absolute; width: 6px; height: 6px; border-radius: 50%; top: 14px; right: 14px; background: #54717b33; }
-.pad[aria-pressed=true]::after { background: #eaffff; box-shadow: 0 0 7px #33cfff; }
-.pad.pending::after { background: #fff1a7; box-shadow: 0 0 6px #eabb57; animation: blink .24s steps(1, end) infinite; }
-@keyframes blink { 50% { opacity: .15; } }
-.pad::before { content: ''; position: absolute; bottom: 6px; left: 12px; right: 12px; height: 3px; border-radius: 2px; background: #fff2a4; transform: scaleX(var(--progress, 0)); transform-origin: left; }
-.pad:disabled { cursor: default; opacity: .45; }
-.pad.empty-slot { visibility: hidden; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #075b91; outline-offset: 5px; }
-.transport { display: flex; flex-direction: column; align-items: center; border-left: 1px solid #5a7c8d55; padding-left: 16px; }
-.volume-label { font-size: 11px; letter-spacing: .2em; margin: 3px 0 10px; }
-.fader { flex: 1; min-height: 105px; width: 110px; position: relative; display: flex; justify-content: center; }
-#volume { writing-mode: vertical-lr; direction: rtl; appearance: none; -webkit-appearance: none; width: 22px; height: 100%; min-height: 105px; margin: 0; border: 1px solid #d8f8ff; border-radius: 14px; background: linear-gradient(to top, #49d9ea 0%, #49d9ea var(--volume, 80%), #163b4a var(--volume, 80%), #163b4a 100%); box-shadow: 0 0 0 2px #789eaf, inset 0 0 0 5px #0b3546; cursor: ns-resize; touch-action: none; }
-#volume::-webkit-slider-thumb { appearance: none; width: 45px; height: 26px; border-radius: 7px; border: 1px solid #faffff; background: linear-gradient(to bottom, #eef7fa, #8da6b1 42%, #e6f3f9 46%, #416575 50%, #e3eff5 54%, #acc3ce 85%, #effaff); box-shadow: 0 2px 4px #173e5077, 0 0 0 1px #65899a; }
-#volume::-moz-range-thumb { width: 45px; height: 26px; border-radius: 7px; border: 1px solid white; background: linear-gradient(#effaff, #a3bbc9 44%, #446777 50%, #d7e9f1 57%, #9ab5c2); }
-.ticks { position: absolute; left: 80px; top: 0; bottom: 0; width: 9px; background: repeating-linear-gradient(to bottom, #557b88 0 1px, transparent 1px 16px); pointer-events: none; }
-#volume-value { font-size: 10px; font-variant-numeric: tabular-nums; padding: 7px; }
-.transport-bottom { display: flex; gap: 12px; align-items: center; width: 100%; justify-content: center; }
-#pause { border: 1px solid #edffff; border-radius: 50%; width: 56px; height: 56px; flex-shrink: 0; font-size: 12px; background: linear-gradient(135deg, #e5f8ff, #99becf); box-shadow: 0 0 0 2px #60879777, inset 0 2px 5px white, 0 3px 5px #34596c44; }
-.fade { border: 1px solid #f1fcff; border-radius: 10px; padding: 8px; text-align: center; box-shadow: inset 0 0 10px #ffffff44; }
-.fade small { display: block; font-size: 9px; letter-spacing: .14em; margin-bottom: 4px; }
-.fade select { font: inherit; font-size: 14px; color: inherit; border: 0; background: transparent; }
-footer { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; padding: 14px 4px 0; font-size: 11px; color: #33566a; }
-#status { margin: 0; }
-.help { font-size: 10px; text-align: right; opacity: .85; }
-.media-editor { margin-top: 18px; border-top: 1px solid #7493a655; padding: 12px 4px 0; font-size: 13px; }
-.media-editor summary { cursor: pointer; font-weight: 600; }
-.media-editor p { margin: 10px 0; line-height: 1.5; }
-.media-editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-.media-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 14px; }
-.media-fields label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.media-fields input, .media-fields select { width: 100%; min-width: 0; font: inherit; color: inherit; }
-.media-fields select { padding: 5px; }
-.media-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
-.media-actions button { border: 1px solid #f1fdff; border-radius: 10px; padding: 8px 14px; background: #e5f8ff; }
-.media-actions button:disabled { opacity: .5; cursor: default; }
-#media-status { overflow-wrap: anywhere; }
-#pool { position: fixed; left: 0; top: 0; width: 2px; height: 2px; overflow: hidden; opacity: 0; pointer-events: none; }
-#pool video { width: 2px; height: 2px; }
-@media (max-width: 850px) {
-  body { padding: 12px; } main { padding: 16px; border-radius: 25px; }
-  .screen-row, .deck { grid-template-columns: minmax(0, 1fr) 140px; gap: 12px; }
-  .clip-grid { gap: 9px; } .pad { padding: 10px; border-radius: 15px; } .pad-key { top: 9px; left: 10px; }
-  .scenes { grid-template-columns: repeat(min(var(--count, 6), 4), minmax(0, 1fr)); }
-  .transport { padding-left: 10px; } .transport-bottom { gap: 8px; flex-direction: column; } #pause { width: 45px; height: 45px; }
-}
-@media (max-width: 600px) {
-  body { padding: 8px; } main { padding: 12px; border-radius: 20px; }
-  header { padding: 5px 2px 14px; } h1 { font-size: 12px; letter-spacing: .22em; } .edition { font-size: 8px; }
-  .screen-row { grid-template-columns: 1fr; } .side { display: none; } .deck { grid-template-columns: 1fr; }
-  .scenes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .scenes .pad { aspect-ratio: 1.5; } .lights .pad { aspect-ratio: 1; padding: 8px 5px; border-radius: 12px; }
-  .pad-name { font-size: 11px; } .pad-key { font-size: 8px; top: 7px; left: 8px; } .pad-mode { font-size: 7px; }
-  .pad::after { top: 8px; right: 8px; width: 4px; height: 4px; }
-  .row-head .hint { display: none; }
-  .ribbon { height: 30px; margin: 12px 0; }
-  .transport { border-left: 0; border-top: 1px solid #7493a655; padding: 12px 0 0; display: grid; grid-template-columns: 1fr 80px 1fr; align-items: center; gap: 8px; }
-  .volume-label { margin: 0; justify-self: end; } .fader { height: 112px; min-height: 112px; width: 80px; } .ticks { left: 65px; }
-  #volume-value { grid-column: 2; grid-row: 2; text-align: center; } .transport-bottom { grid-column: 3; grid-row: 1 / 3; }
-  footer { display: block; } .help { text-align: left; display: block; margin-top: 6px; }
-}
-@media (prefers-reduced-motion: reduce) { .pad { transition: none; } .pad.pending::after { animation: none; } body { transition: none; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; media-src blob:; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Pixel Rhythms — Local Mixer</title>
+<style>
+*{box-sizing:border-box} [hidden]{display:none!important}
+:root{color-scheme:light;font-family:'Segoe UI',system-ui,sans-serif;color:#164256}
+body{margin:0;padding:12px;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#4c8292,#163b4a 75%)}
+main{max-width:1200px;margin:auto;padding:16px;border:1px solid #f1fdff;border-radius:26px;background:linear-gradient(120deg,#dceef4ee,#a9cad8ed 48%,#dfedf4ee);box-shadow:inset 0 0 0 3px #ffffff65,inset 0 0 0 6px #557b8933,0 22px 65px #041e3266}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:3px 4px 12px}
+h1{font-size:14px;font-weight:500;letter-spacing:.34em;margin:0}.edition{font-size:9px;letter-spacing:.18em}
+button,input,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #075b91;outline-offset:3px}
+button:not(.pad),select{padding:8px 12px;border:1px solid #f1fcff;border-radius:9px;background:linear-gradient(#eefaff,#b7d4df);box-shadow:0 1px 3px #244c5a30;font-size:12px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.toolbar span{font-size:11px}.primary{background:#154e63!important;color:white!important}
+#library-label{margin-left:auto;max-width:45%;overflow-wrap:anywhere}
+.screen-row{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:12px}
+.inset{border:1px solid #e9fbff;border-radius:13px;background:linear-gradient(130deg,#092d3c,#123f50);box-shadow:0 0 0 2px #37637577,inset 0 2px 7px #001823;overflow:hidden}
+.stage{position:relative;min-height:240px;height:clamp(260px,49vh,510px);background:#06222e}.stage canvas{display:block;width:100%;height:100%;object-fit:contain}
+.empty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#b8dce5;gap:14px;padding:20px;background:radial-gradient(ellipse at 50% 20%,#235970,#082733 75%)}
+.empty strong{font-weight:300;font-size:clamp(22px,3vw,38px);letter-spacing:.05em}.empty span{font-size:13px;line-height:1.6}
+#playing-label{position:absolute;left:10px;top:10px;max-width:calc(100% - 20px);padding:6px 10px;background:#082d3ee8;border:1px solid #acd7df66;border-radius:8px;color:#e4fbff;font-size:11px;overflow-wrap:anywhere;pointer-events:none}
+.side{display:grid;grid-template-rows:minmax(58px,1fr) 42px 125px 67px;gap:8px;min-width:0}.meters canvas,.scope canvas,.ribbon canvas{width:100%;height:100%;display:block}
+.transport{display:grid;grid-template-columns:65px 1fr;grid-template-rows:14px 1fr 14px;gap:4px 8px;padding:4px}.volume-label{font-size:8px;letter-spacing:.15em;text-align:center}.fader{grid-column:1;grid-row:2;display:flex;justify-content:center;min-height:0}
+#volume{writing-mode:vertical-lr;direction:rtl;appearance:none;width:16px;height:100%;min-height:0;margin:0;border:1px solid #d8f8ff;border-radius:12px;background:linear-gradient(to top,#49d9ea 0%,#49d9ea var(--volume,80%),#163b4a var(--volume,80%),#163b4a 100%);box-shadow:0 0 0 2px #789eaf,inset 0 0 0 4px #0b3546;cursor:ns-resize;touch-action:none}
+#volume::-webkit-slider-thumb{appearance:none;width:34px;height:18px;border-radius:5px;border:1px solid white;background:linear-gradient(#effaff,#a3bbc9 44%,#446777 50%,#d7e9f1 57%,#9ab5c2)}
+#volume::-moz-range-thumb{width:34px;height:18px;border-radius:5px;border:1px solid white;background:linear-gradient(#effaff,#a3bbc9 44%,#446777 50%,#d7e9f1 57%,#9ab5c2)}
+#volume-value{font-size:9px;grid-column:1;grid-row:3;text-align:center}.transport-bottom{grid-column:2;grid-row:1/4;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px}
+#pause{border-radius:50%;width:48px;height:48px;padding:2px;font-size:11px}.fade{text-align:center;border:1px solid #f1fcff;border-radius:9px;padding:5px;width:100%}.fade small{display:block;font-size:8px;letter-spacing:.14em}.fade select{padding:3px;border:0;background:transparent;box-shadow:none;font-size:11px}
+.record-buttons{display:flex;gap:6px}.record-buttons button{flex:1;padding:9px 3px;font-size:11px;white-space:nowrap}#record[aria-pressed=true]{background:#87434a;color:white}.record-controls p{font-size:10px;line-height:1.4;margin:6px 0}
+.ribbon{height:22px;margin:10px 0 6px}.status-row{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:26px;margin-bottom:6px}#status{font-size:12px;margin:0;overflow-wrap:anywhere}#status[data-error=true]{color:#743212;font-weight:600}.paging{display:flex;gap:5px;align-items:center;flex-shrink:0;font-size:10px}.paging button{padding:5px 9px}
+.clip-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.pad{--pad:128,224,238;position:relative;min-height:67px;overflow:hidden;padding:8px;border:1px solid #eaffff;border-radius:14px;background:radial-gradient(ellipse at 45% 18%,#f9ffffc9,rgba(var(--pad),.44));box-shadow:inset 0 0 0 3px #ecffff88,inset 0 4px 7px #ffffffce,inset 0 -5px 9px #51728b44,0 5px 9px #153d5426;transition:box-shadow .15s,transform .1s,filter .15s;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2px}
+.pad:nth-child(5n+2){--pad:186,174,236}.pad:nth-child(5n+3){--pad:128,203,238}.pad:nth-child(5n+4){--pad:132,220,200}.pad:nth-child(5n){--pad:236,216,155}
+.pad:not(:disabled):hover{filter:brightness(1.1);transform:translateY(-1px)}.pad:not(:disabled):active{transform:translateY(2px)}.pad-number{font-size:23px;line-height:1.1}.pad-name{font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:1}.pad-role{font-size:8px;letter-spacing:.12em;min-height:10px;z-index:1}
+.pad[aria-pressed=true]{border-color:white;background:radial-gradient(ellipse at 50% 40%,#efffff,rgba(var(--pad),1));box-shadow:0 0 0 2px #f0ffff,inset 0 0 22px white,0 0 24px rgba(var(--pad),1)}.pad.layered{border-color:#ffe9a5;box-shadow:0 0 0 2px #fff2a4,inset 0 0 20px #fff8db,0 0 24px #e7cf8e}
+.pad::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,white,#efffffcc 45%,rgba(var(--pad),.9));opacity:0;pointer-events:none}.pad.pending::after{animation:pad-pulse .7s ease-in-out infinite}.pad.hit::after{animation:pad-hit .45s ease-out}
+@keyframes pad-pulse{50%{opacity:.9}}@keyframes pad-hit{0%,15%{opacity:1}100%{opacity:0}}
+.footnote{font-size:10px;line-height:1.5;margin:9px 2px;color:#375d6d}.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.tools label{display:flex;align-items:center;gap:8px;font-size:12px}.tools input[type=range]{width:130px;accent-color:#24778b}.tools output{font-size:11px;min-width:30px}
+details{border-top:1px solid #557b8955;margin-top:10px;padding-top:7px}summary{font-size:12px;cursor:pointer;padding:4px 2px}details p{font-size:12px;line-height:1.5}.tools button[aria-pressed=true]{background:#1b6174;color:white}#layer-state{font-size:12px}.replace select{max-width:270px}.replace input{font-size:12px;max-width:100%}
+@media(max-width:650px){body{padding:6px}main{padding:10px;border-radius:18px}header{flex-wrap:wrap;gap:5px}h1{font-size:12px}.edition{font-size:8px}.toolbar{gap:6px}#library-label{max-width:100%;width:100%;margin:0}.screen-row{grid-template-columns:1fr;gap:8px}.stage{height:clamp(200px,35vh,340px);min-height:200px}.side{grid-template-columns:1fr 145px;grid-template-rows:auto;align-items:center}.meters,.scope{display:none}.transport{grid-template-columns:42px 1fr 28px;grid-template-rows:20px 38px;gap:5px;align-items:center}.volume-label{grid-column:1;grid-row:1}.fader{grid-column:2;grid-row:1;height:14px}#volume{writing-mode:horizontal-tb;direction:ltr;width:100%;height:14px;background:linear-gradient(to right,#49d9ea 0%,#49d9ea var(--volume,80%),#163b4a var(--volume,80%),#163b4a 100%);cursor:ew-resize}#volume::-webkit-slider-thumb{width:18px;height:26px}#volume::-moz-range-thumb{width:18px;height:26px}#volume-value{grid-column:3;grid-row:1}.transport-bottom{grid-column:1/4;grid-row:2;flex-direction:row;justify-content:start;gap:8px}#pause{border-radius:9px;width:52px;height:32px}.fade{display:flex;width:auto;gap:4px;align-items:center}.clip-grid{gap:7px}.pad{padding:7px 3px;min-height:76px;border-radius:10px}.pad-number{font-size:21px}.pad-name{font-size:9px}.pad-role{font-size:7px}.status-row{align-items:start}#status{font-size:11px}.tools{gap:8px}.tools input[type=range]{width:110px}}
+@media(prefers-reduced-motion:reduce){.pad{transition:none}.pad.pending::after,.pad.hit::after{animation:none;opacity:.5}}
+</style>
 </head>
 <body>
 <main>
-  <header><h1>PIXEL RHYTHMS</h1><span class="edition"><span class="beats" id="beats" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span id="tempo">MIXER · 125 BPM</span></span></header>
-  <div class="screen-row">
-    <div class="stage inset">
-      <canvas id="stage" width="1280" height="720" aria-label="Mixed picture"></canvas>
-      <div class="empty" id="empty"><strong>A world at your fingertips.</strong><span>Tap a scene to begin.</span></div>
-    </div>
-    <aside class="side" aria-label="Live audio feedback">
-      <div class="meters inset"><canvas class="feedback" id="meters" aria-label="Left and right audio peak levels"></canvas></div>
-      <div class="scope inset"><canvas class="feedback" id="scope" aria-label="Live audio waveform"></canvas></div>
-    </aside>
-  </div>
-  <div class="ribbon inset"><canvas class="feedback" id="ribbon" aria-label="Recent audio amplitude history"></canvas></div>
-  <div class="deck">
-    <nav aria-label="Scenes and lights">
-      <div class="row-head"><span>SCENES</span><span class="hint">Pick a world</span></div>
-      <div id="scenes" class="clip-grid scenes"></div>
-      <div class="row-head lights-head"><span>LIGHTS · <b id="scene-name">no scene yet</b></span><span class="hint">Each light lands on the next bar</span></div>
-      <div id="lights" class="clip-grid lights"></div>
-    </nav>
-    <div class="transport">
-      <label class="volume-label" for="volume">VOLUME</label>
-      <div class="fader"><input id="volume" aria-label="Master volume" type="range" min="0" max="1" step="0.01" value="0.8"><span class="ticks" aria-hidden="true"></span></div>
-      <output id="volume-value" for="volume">80%</output>
-      <div class="transport-bottom"><button id="pause" type="button" disabled aria-label="Pause or resume">Pause</button>
-        <label class="fade"><small>SCENE FADE</small><select id="fade" aria-label="Scene fade length"><option value="1">1 beat</option><option value="4" selected>1 bar</option><option value="8">2 bars</option></select></label></div>
-    </div>
-  </div>
-  <footer><p id="status" role="status">Tap a scene to begin.</p><span class="help">Scenes 1–8 · Lights Q W E R · All off T · Space pauses</span></footer>
-  <details class="media-editor" id="media-editor">
-    <summary>Change clips</summary>
-    <p id="media-scene">Play a scene first, then change its clips here.</p>
-    <p>Choose a video for one light pad, or replace the scene’s music. Changes stay in this tab; reloading restores the saved setup.</p>
-    <fieldset id="media-fields" disabled>
-      <div class="media-fields">
-        <label>Light pad<select id="media-voice" aria-label="Light pad to replace"></select></label>
-        <label>Replacement video<input id="media-video" type="file" accept="video/*"></label>
-        <label>Reference image (optional)<input id="media-ref" type="file" accept="image/*"></label>
-        <label>Scene music (optional)<input id="media-music" type="file" accept="audio/*,video/mp4,video/webm"></label>
-      </div>
-      <p>A new video uses its first frame as the reference unless you choose an image. Use the same camera view for lights that should layer. Music stays as it is unless you replace it.</p>
-      <div class="media-actions"><button id="media-apply" type="button">Apply to this scene</button><button id="media-reset" type="button">Restore this scene</button></div>
-    </fieldset>
-    <p id="media-status" role="status">Your files stay local to this browser tab.</p>
-  </details>
+<header><h1>PIXEL RHYTHMS</h1><span class="edition">LOCAL MIXER · RESET 01</span></header>
+<div class="toolbar">
+<button class="primary" id="choose-folder">Choose video folder</button><button id="choose-files">Choose videos</button>
+<span id="library-label">Your Krea downloads, ready to play.</span>
+<input id="folder-input" type="file" webkitdirectory multiple hidden aria-label="Choose video folder">
+<input id="files-input" type="file" accept="video/*,.mp4,.m4v,.webm,.mov" multiple hidden aria-label="Choose videos">
+</div>
+<div class="screen-row">
+<div class="stage inset">
+<canvas id="picture" width="1280" height="720" aria-label="Mixed video output"></canvas>
+<div class="empty" id="empty"><strong>A world at your fingertips.</strong><span>Choose your video folder. Tap a pad.<br>Each video brings its own sound.</span></div>
+<span id="playing-label" hidden></span>
+</div>
+<aside class="side" aria-label="Playback and recording">
+<div class="meters inset"><canvas id="meters" aria-label="Stereo audio levels"></canvas></div>
+<div class="scope inset"><canvas id="scope" aria-label="Audio waveform"></canvas></div>
+<div class="transport">
+<label class="volume-label" for="volume">VOLUME</label><div class="fader"><input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Master volume"></div><output id="volume-value" for="volume">80%</output>
+<div class="transport-bottom"><button id="pause" disabled>Pause</button><label class="fade"><small>FADE</small><select id="fade-seconds" aria-label="Crossfade duration"><option value="0.5">0.5 s</option><option value="1.5">1.5 s</option><option value="3">3 s</option></select></label></div>
+</div>
+<div class="record-controls"><div class="record-buttons"><button id="record" aria-pressed="false" disabled>● Record</button><button id="save-performance" disabled>Save video</button></div><p id="record-status" role="status">Record → Stop → Save video.</p></div>
+</aside>
+</div>
+<div class="ribbon inset"><canvas id="ribbon" aria-label="Sound wave history"></canvas></div>
+<div class="status-row"><p id="status" role="status">Choose a folder or a few videos to begin.</p><div class="paging" id="paging" hidden><button id="previous-bank" aria-label="Previous ten pads">←</button><span id="bank-label"></span><button id="next-bank" aria-label="Next ten pads">→</button></div></div>
+<nav class="clip-grid" id="pads" aria-label="Video pads"></nav>
+<p class="footnote">Keys 1–5 / Q–T play these pads. Files stay on your device. Choose the folder again after changing its files or reopening this page.</p>
+<details id="mixing"><summary>Try a light blend</summary>
+<p>Play one clip, then choose another as a visual layer. The current clip keeps its music.</p>
+<div class="tools"><button id="arm-layer" aria-pressed="false" disabled>Layer a clip</button><button id="clear-layer" disabled>Remove layer</button><label for="layer-amount">Amount <input id="layer-amount" type="range" min="0" max="1" step="0.01" value="0.5" disabled></label><output id="layer-value" for="layer-amount">50%</output></div>
+<p id="layer-state" role="status">No layer. Start with two takes from the same camera position.</p>
+</details>
+<details class="replace" id="replace"><summary>Change one clip</summary><p>Select a pad and choose its replacement video. Tap the pad to play the new file.</p><div class="tools"><select id="replace-pad" aria-label="Pad to replace" disabled></select><input id="replacement" type="file" accept="video/*,.mp4,.m4v,.webm,.mov" aria-label="Replacement video" disabled></div></details>
 </main>
-<div id="pool" aria-hidden="true"></div>
-
-<script src="config.js"></script>
+<div id="media-pool" hidden><video id="deck-a" loop playsinline preload="auto"></video><video id="deck-b" loop playsinline preload="auto"></video></div>
 <script>
-(() => {
-  'use strict';
-  // ---------------- settings from config.js ----------------
-  const CFG = window.MIXER_CONFIG || { scenes: [] };
-  const ORIGINAL_SCENES = structuredClone((CFG.scenes || []).slice(0, 8));
-  const SCENES = structuredClone(ORIGINAL_SCENES);
-  const BPM = Number(CFG.bpm) || 125, BEAT = 60 / BPM, BAR = 4 * BEAT;
-  const SCENE_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8'];
-  const LIGHT_KEYS = ['q', 'w', 'e', 'r'];
-  const OFF_KEY = 't';
-  const FALLBACK_COLORS = ['#36ccea', '#a692e4', '#48a1d5', '#58c3bf', '#d3b66f'];
-  const $ = s => document.querySelector(s);
-  const statusEl = $('#status');
-  const say = msg => { statusEl.textContent = msg; };
-  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-  const smooth = u => u * u * (3 - 2 * u);
-  const rgb = hex => { const h = String(hex || '').replace('#', ''); if (!/^[0-9a-f]{6}$/i.test(h)) return '54, 204, 234'; return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)).join(', '); };
-  $('#tempo').textContent = `MIXER · ${BPM} BPM`;
-
-  // ---------------- state ----------------
-  // Which lights are on in each scene, remembered when you leave and come back.
-  const memory = SCENES.map(sc => sc.voices.slice(0, 4).map((_, j) => j === 0));
-  let ctx = null, master = null, T0 = 0, playing = false;
-  let current = null;    // the scene on screen: { index, voices, size, buffer, music }
-  let incoming = null;   // the scene fading in
-  let change = null;     // { index, from, t } while a scene is loading or waiting for its bar
-  let fade = null;       // { t0, t1 } while two scenes overlap
-  let glReady = false, editingMedia = false;
-  const localUrls = new Set(), editedScenes = new Set();
-  const waiters = [];
-  const now = () => (ctx ? ctx.currentTime : 0);
-  const nextBar = (t = now() + 0.05) => T0 + Math.ceil((t - T0) / BAR - 1e-6) * BAR;
-  // Resolves once the audio clock reaches t. Checked every frame, with a timer as a backstop.
-  const until = t => new Promise(resolve => {
-    const w = { t, resolve };
-    waiters.push(w);
-    const check = () => {
-      const i = waiters.indexOf(w); if (i < 0) return;
-      if (now() >= t) { waiters.splice(i, 1); resolve(); } else setTimeout(check, Math.max(10, (t - now()) * 1000));
-    };
-    setTimeout(check, Math.max(10, (t - now()) * 1000));
-  });
-  const rampValue = (r, t) => !r ? 0 : t <= r.t0 ? r.from : t >= r.t1 ? r.to : r.from + (r.to - r.from) * smooth((t - r.t0) / (r.t1 - r.t0));
-
-  // ---------------- picture: WebGL ----------------
-  // Each light is layered as: still first frame + (light video - its own first frame).
-  // Brightening adds up across lights; darkening is averaged so it never doubles.
-  const canvas = $('#stage');
-  const gl = canvas.getContext('webgl', { alpha: false, antialias: false, premultipliedAlpha: false });
-  const VS = 'attribute vec2 p; varying vec2 v; void main(){ v = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }';
-  const FS_SCENE = `precision mediump float; varying vec2 v;
-uniform sampler2D V0, V1, V2, V3, R0, R1, R2, R3; uniform float G[4]; uniform vec2 S; uniform float K;
-void main() {
-  vec2 uv = 0.5 + (v - 0.5) * S;
-  vec3 still = texture2D(R0, uv).rgb; vec3 darker = vec3(0.0); vec3 brighter = vec3(0.0); float total = 0.0;
-  #define LIGHT(VV, RR, i) { vec3 d = texture2D(VV, uv).rgb - texture2D(RR, uv).rgb; total += G[i]; darker += G[i] * max(-d, 0.0); brighter += G[i] * max(d - K, 0.0) / (1.0 - K); }
-  LIGHT(V0, R0, 0) LIGHT(V1, R1, 1) LIGHT(V2, R2, 2) LIGHT(V3, R3, 3)
-  gl_FragColor = vec4(clamp(still - darker / max(1.0, total) + brighter, 0.0, 1.0), 1.0);
-}`;
-  const FS_MIX = 'precision mediump float; varying vec2 v; uniform sampler2D A, B; uniform float X; void main(){ gl_FragColor = vec4(mix(texture2D(A, v).rgb, texture2D(B, v).rgb, X), 1.0); }';
-  let sceneProg, mixProg, U = {}, M = {}, black, targets = [], tintTarget;
-  function compile(fs) {
-    const make = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
-    const p = gl.createProgram(); gl.attachShader(p, make(gl.VERTEX_SHADER, VS)); gl.attachShader(p, make(gl.FRAGMENT_SHADER, fs));
-    gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p;
-  }
-  function texture(w, h) {
-    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    if (w) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    return t;
-  }
-  function target(w, h) { const tex = texture(w, h), fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0); gl.bindFramebuffer(gl.FRAMEBUFFER, null); return { tex, fb, w, h }; }
-  function initGL() {
-    sceneProg = compile(FS_SCENE); mixProg = compile(FS_MIX);
-    ['V0', 'V1', 'V2', 'V3', 'R0', 'R1', 'R2', 'R3', 'G', 'S', 'K'].forEach(n => { U[n] = gl.getUniformLocation(sceneProg, n); });
-    ['A', 'B', 'X'].forEach(n => { M[n] = gl.getUniformLocation(mixProg, n); });
-    const quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    black = texture(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
-    targets = [target(1280, 720), target(1280, 720)]; tintTarget = target(32, 18);
-  }
-  const bind = (unit, tex) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); };
-  function drawScene(scene, t, out) {
-    const gains = new Float32Array(4);
-    for (let i = 0; i < 4; i++) {
-      const v = scene && scene.voices[i];
-      if (v) {
-        const g = rampValue(v.ramp, t);
-        if ((g > 0.001 || v.ramp?.to > 0 || !v.uploaded) && v.video.readyState >= 2 && v.video.currentTime !== v.lastT) {
-          gl.bindTexture(gl.TEXTURE_2D, v.tex);
-          try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, v.video); v.uploaded = true; v.lastT = v.video.currentTime; } catch (e) { /* frame not ready */ }
-        }
-        gains[i] = v.uploaded ? g : 0; bind(i, v.tex); bind(4 + i, v.ref);
-      } else { bind(i, black); bind(4 + i, scene && scene.voices[0] ? scene.voices[0].ref : black); }
-    }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, out.fb); gl.viewport(0, 0, out.w, out.h); gl.useProgram(sceneProg);
-    for (let i = 0; i < 4; i++) { gl.uniform1i(U['V' + i], i); gl.uniform1i(U['R' + i], 4 + i); }
-    gl.uniform1fv(U.G, gains); gl.uniform1f(U.K, 0.018);
-    const av = scene ? scene.size[0] / scene.size[1] : 16 / 9, ac = 16 / 9;   // cover-fit the clip to 16:9
-    gl.uniform2f(U.S, av > ac ? ac / av : 1, av > ac ? 1 : av / ac);
-    if (!scene) { gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); return; }
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  }
-  function drawMix(out, x) {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, out ? out.fb : null);
-    gl.viewport(0, 0, out ? out.w : canvas.width, out ? out.h : canvas.height);
-    gl.useProgram(mixProg); bind(0, targets[0].tex); bind(1, targets[1].tex);
-    gl.uniform1i(M.A, 0); gl.uniform1i(M.B, 1); gl.uniform1f(M.X, x);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  }
-
-  // ---------------- media loading ----------------
-  const pool = $('#pool');
-  const musicCache = new Map();
-  function loadMusic(path) {
-    if (!musicCache.has(path)) {
-      musicCache.set(path, fetch(path).then(r => { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
-        .then(b => ctx.decodeAudioData(b))
-        .catch(() => { musicCache.delete(path); throw new Error('Could not load the scene music. Choose a playable audio file or check its path in config.js.'); }));
-    }
-    return musicCache.get(path);
-  }
-  function videoFor(path) {
-    const video = document.createElement('video');
-    video.muted = true; video.defaultMuted = true; video.loop = true; video.playsInline = true; video.preload = 'auto';
-    video.setAttribute('playsinline', ''); video.setAttribute('muted', '');
-    video.src = path; pool.appendChild(video);
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => fail(), 15000);
-      const done = () => { clearTimeout(timer); video.removeEventListener('loadeddata', ok); video.removeEventListener('error', fail); };
-      const ok = () => { done(); resolve(video); };
-      const fail = () => { done(); video.pause(); video.removeAttribute('src'); video.load(); video.remove(); reject(new Error('Could not load a video. Choose a playable MP4 or WebM, or check its path in config.js.')); };
-      video.addEventListener('loadeddata', ok); video.addEventListener('error', fail);
-    });
-  }
-  function imageTexture(path) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const timer = setTimeout(() => { img.onload = img.onerror = null; img.src = ''; reject(new Error('Reference image timed out. Try another image.')); }, 15000);
-      img.onload = () => { clearTimeout(timer); let t; try { t = texture(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img); resolve(t); } catch (err) { if (t) gl.deleteTexture(t); reject(err); } };
-      img.onerror = () => { clearTimeout(timer); reject(new Error('Could not load the reference image. Choose another image or check config.js.')); };
-      img.src = path;
-    });
-  }
-  function firstFrameTexture(video) { const t = texture(); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, video); return t; }
-  async function loadScene(index) {
-    const def = SCENES[index];
-    const prepared = [];
-    // Wait for every loader to settle so a failed replacement can release all resources.
-    const results = await Promise.allSettled([
-      def.music ? loadMusic(def.music) : Promise.resolve(null),
-      ...def.voices.slice(0, 4).map(async (vd) => {
-        const video = await videoFor(vd.video);
-        const v = { def: vd, video, ref: null, tex: null, ramp: null, pending: null, on: false, uploaded: false, lastT: -1 };
-        prepared.push(v);
-        v.ref = vd.ref ? await imageTexture(vd.ref) : firstFrameTexture(video);
-        v.tex = texture();
-        return v;
-      })
-    ]);
-    const failed = results.find(r => r.status === 'rejected');
-    if (failed) { release({ voices: prepared }); throw failed.reason; }
-    const voices = results.slice(1).map(r => r.value);
-    if (playing) voices.forEach(v => v.video.play().catch(() => {}));
-    const first = voices[0] ? voices[0].video : null;
-    return { index, voices, size: first ? [first.videoWidth || 16, first.videoHeight || 9] : [16, 9], buffer: results[0].value, music: null };
-  }
-  function release(scene) {
-    if (!scene) return;
-    for (const v of scene.voices) { v.video.pause(); v.video.removeAttribute('src'); v.video.load(); v.video.remove(); gl.deleteTexture(v.tex); gl.deleteTexture(v.ref); }
-  }
-
-  // ---------------- sound ----------------
-  let analyser, channels, waveData, channelData;
-  async function unlock() {
-    if (!ctx) {
-      ctx = new (window.AudioContext || window.webkitAudioContext)();
-      master = ctx.createGain(); master.gain.value = Number($('#volume').value); master.connect(ctx.destination);
-      analyser = ctx.createAnalyser(); analyser.fftSize = 1024; master.connect(analyser); waveData = new Float32Array(analyser.fftSize);
-      const splitter = ctx.createChannelSplitter(2); master.connect(splitter);
-      channels = [0, 1].map(i => { const a = ctx.createAnalyser(); a.fftSize = 1024; splitter.connect(a, i); return a; });
-      channelData = channels.map(a => new Float32Array(a.fftSize));
-      await ctx.resume();
-      T0 = ctx.currentTime + 0.1; playing = true; $('#pause').disabled = false;
-    } else if (ctx.state === 'suspended' && playing) await ctx.resume();
-  }
-  function startMusic(scene, t, seconds) {
-    if (!scene.buffer) return;
-    const src = ctx.createBufferSource(); src.buffer = scene.buffer; src.loop = true;
-    const gain = ctx.createGain(); gain.gain.setValueAtTime(seconds > 0.01 ? 0 : 1, t); if (seconds > 0.01) gain.gain.linearRampToValueAtTime(1, t + seconds);
-    src.connect(gain); gain.connect(master);
-    const d = scene.buffer.duration; src.start(t, (((t - T0) % d) + d) % d);   // keep every loop on the same bar grid
-    scene.music = { src, gain };
-  }
-  function stopMusic(scene, t, seconds) {
-    if (!scene.music) return;
-    const { src, gain } = scene.music;
-    gain.gain.setValueAtTime(1, t); gain.gain.linearRampToValueAtTime(0, t + Math.max(seconds, 0.02));
-    try { src.stop(t + Math.max(seconds, 0.02) + 0.05); } catch (e) { /* already stopped */ }
-  }
-
-  // ---------------- actions ----------------
-  async function pressScene(index, { reload = false } = {}) {
-    if (!SCENES[index]) return false;
-    if (!glReady) { say('This browser could not start WebGL, which the mixer needs. Try Chrome or Edge with graphics acceleration enabled.'); return false; }
-    if (change || fade || (editingMedia && !reload)) { say('Let this scene change finish, then tap again.'); return false; }
-    if (!reload && current && current.index === index) { say(`${SCENES[index].name} is already playing.`); return true; }
-    const name = SCENES[index].name;
-    change = { index, from: now(), t: null };
-    syncMediaControls();
-    say(`Loading ${name}…`);
-    let scene = null;
-    try {
-      await unlock();
-      scene = await loadScene(index);
-      const t = nextBar(), seconds = current ? Number($('#fade').value) * BEAT : 0;
-      scene.voices.forEach((v, j) => { v.on = !!memory[index][j]; v.ramp = { from: v.on ? 1 : 0, to: v.on ? 1 : 0, t0: t, t1: t }; });
-      startMusic(scene, t, seconds);
-      if (current) stopMusic(current, t, seconds);
-      change.t = t; incoming = scene; fade = { t0: t, t1: t + Math.max(seconds, 0.001) };
-      say(`${name} comes in on the next bar.`);
-      await until(fade.t1);
-      release(current); current = incoming; incoming = null; fade = null;
-      say(current.voices.length ? `${name}. Tap a light to layer it.` : `${name} has no clips yet. Add some in config.js.`);
-      return true;
-    } catch (error) {
-      if (scene && scene !== current) { if (scene.music) stopMusic(scene, now(), 0.05); release(scene); }
-      incoming = null; fade = null;
-      say(error.message);
-      return false;
-    } finally { change = null; buildLights(); }
-  }
-  function toggleLight(j) {
-    if (!current || fade) { say(current ? 'Wait for the scene change to finish.' : 'Pick a scene first.'); return; }
-    const v = current.voices[j]; if (!v) return;
-    const t = nextBar(now() + 0.03);
-    v.on = !v.on; memory[current.index][j] = v.on;
-    v.ramp = { from: rampValue(v.ramp, now()), to: v.on ? 1 : 0, t0: t, t1: t + BEAT };
-    v.pending = { from: now(), t };
-    say(`${v.def.name || 'Light ' + (j + 1)} ${v.on ? 'fades in' : 'fades out'} on the next bar.`);
-  }
-  function allOff() {
-    if (!current || fade) return;
-    const t = nextBar(now() + 0.03); let any = false;
-    current.voices.forEach((v, j) => { if (v.on) { any = true; v.on = false; memory[current.index][j] = false; v.ramp = { from: rampValue(v.ramp, now()), to: 0, t0: t, t1: t + BEAT }; v.pending = { from: now(), t }; } });
-    say(any ? 'All lights fade out on the next bar, back to the still.' : 'All lights are already off.');
-  }
-
-  // ---------------- local media replacement ----------------
-  function syncMediaControls() {
-    const index = current?.index;
-    const fieldset = $('#media-fields'), select = $('#media-voice');
-    fieldset.disabled = !current || !!change || !!fade || editingMedia;
-    $('#media-scene').textContent = current ? `Editing: ${SCENES[index].name}` : 'Play a scene first, then change its clips here.';
-    const key = current ? `${index}:${current.voices.map(v => v.def.name).join('|')}` : 'empty';
-    if (select.dataset.key !== key) {
-      const previous = select.value;
-      select.replaceChildren();
-      current?.voices.forEach((v, i) => {
-        const option = document.createElement('option'); option.value = String(i); option.textContent = v.def.name || `Light ${i + 1}`; select.append(option);
+'use strict';
+function installMeters(master, context, videos) {
+    let analyser, channels, waveData, channelData;
+    const history = new Float32Array(180);
+    const meterLevels = [0, 0];
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+    function setupMeters() {
+      analyser = context.createAnalyser();
+      analyser.fftSize = 1024;
+      master.connect(analyser);
+      waveData = new Float32Array(analyser.fftSize);
+      const splitter = context.createChannelSplitter(2);
+      master.connect(splitter);
+      channels = [0,1].map(i => {
+        const a = context.createAnalyser(); a.fftSize = 1024;
+        splitter.connect(a, i); return a;
       });
-      const selected = Number.parseInt(previous, 10);
-      select.value = Number.isInteger(selected) && current?.voices[selected] ? String(selected) : '0';
-      select.dataset.key = key;
+      channelData = channels.map(a => new Float32Array(a.fftSize));
     }
-    if (fieldset.dataset.scene !== String(index)) {
-      clearMediaInputs(); fieldset.dataset.scene = String(index);
-      $('#media-status').textContent = 'Your files stay local to this browser tab.';
-    }
-    $('#media-reset').disabled = !editedScenes.has(index);
-  }
-  function clearMediaInputs() {
-    for (const id of ['#media-video', '#media-ref', '#media-music']) $(id).value = '';
-  }
-  function localFile(file) {
-    const url = URL.createObjectURL(file); localUrls.add(url); return url;
-  }
-  function cleanLocalFiles() {
-    const used = new Set(SCENES.flatMap(sc => [sc.music, ...sc.voices.flatMap(v => [v.video, v.ref])]));
-    for (const url of localUrls) if (!used.has(url)) { URL.revokeObjectURL(url); localUrls.delete(url); musicCache.delete(url); }
-  }
-  async function replaceMedia(reset = false) {
-    const report = $('#media-status');
-    if (!current || change || fade || editingMedia) { report.textContent = 'Choose a scene and let its transition finish first.'; return; }
-    if (!playing) { report.textContent = 'Press Play before applying a media change.'; return; }
-    const index = current.index, previous = SCENES[index], next = structuredClone(reset ? ORIGINAL_SCENES[index] : previous);
-    if (!reset) {
-      const video = $('#media-video').files[0], ref = $('#media-ref').files[0], music = $('#media-music').files[0];
-      if (!video && !ref && !music) { report.textContent = 'Choose a replacement video, reference image or music file first.'; return; }
-      const voice = next.voices[Number($('#media-voice').value)];
-      if (video) { voice.video = localFile(video); voice.name = video.name.replace(/\.[^.]+$/, ''); delete voice.ref; }
-      if (ref) voice.ref = localFile(ref);
-      if (music) next.music = localFile(music);
-    }
-    editingMedia = true;
-    SCENES[index] = next;
-    syncMediaControls();
-    report.textContent = 'Preparing your media. The current scene keeps playing…';
-    try {
-      const applied = await pressScene(index, { reload: true });
-      if (applied) {
-        if (reset) editedScenes.delete(index); else editedScenes.add(index);
-        clearMediaInputs();
-        report.textContent = reset ? 'Original scene restored.' : 'Media applied. Other scenes are unchanged. Reloading the page restores the saved setup.';
-      } else {
-        SCENES[index] = previous;
-        report.textContent = `Change not applied. ${statusEl.textContent} Your previous scene is still available.`;
+    const surfaces = ['meters','scope','ribbon'].map(id => {
+      const canvas = document.getElementById(id);
+      return {canvas, ctx:canvas.getContext('2d'), width:0, height:0};
+    });
+    const observer = new ResizeObserver(() => surfaces.forEach(s => {
+      const rect = s.canvas.getBoundingClientRect();
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      s.width = rect.width; s.height = rect.height;
+      s.canvas.width = Math.round(rect.width*dpr); s.canvas.height = Math.round(rect.height*dpr);
+      s.ctx.setTransform(dpr,0,0,dpr,0,0);
+    }));
+    surfaces.forEach(s => observer.observe(s.canvas));
+    let lastDraw = 0;
+    function drawFeedback(now) {
+      requestAnimationFrame(drawFeedback);
+      if (document.hidden || now-lastDraw < (reducedMotion.matches ? 150 : 33)) return;
+      lastDraw = now;
+      const playing = context?.state === 'running' && videos.some(v => !v.paused && v.readyState >= 2);
+      let rms = 0;
+      if (analyser && playing) {
+        analyser.getFloatTimeDomainData(waveData);
+        for (const sample of waveData) rms += sample*sample;
+        rms = Math.sqrt(rms/waveData.length);
+      } else if (waveData) waveData.fill(0);
+      history.copyWithin(0,1); history[history.length-1] = Math.min(1,rms*3);
+      surfaces.forEach(s => s.ctx.clearRect(0,0,s.width,s.height));
+      const m = surfaces[0], c = m.ctx, w = m.width, h = m.height;
+      if (w && h) {
+        const top = 20, height = Math.max(20,h-48), count = 26;
+        for (let ch=0;ch<2;ch++) {
+          let peak=0;
+          if (channels && playing) { channels[ch].getFloatTimeDomainData(channelData[ch]); for (const v of channelData[ch]) peak=Math.max(peak,Math.abs(v)); }
+          const level = Math.max(0,Math.min(1,(20*Math.log10(Math.max(peak,0.001))+48)/48));
+          meterLevels[ch]=Math.max(level,meterLevels[ch]*0.88);
+          const x=w*(ch ? .52 : .22), bar=Math.max(9,w*.12);
+          for(let i=0;i<count;i++) {
+            c.fillStyle=i/count<meterLevels[ch] ? (ch ? '#f1d785' : '#52dfef') : '#244955';
+            c.fillRect(x,top+height-(i+1)*height/count,bar,Math.max(2,height/count-3));
+          }
+          c.fillStyle='#c4dfe5'; c.font='10px system-ui'; c.textAlign='center'; c.fillText(ch?'R':'L',x+bar/2,h-12);
+        }
+        c.fillStyle='#a7c7d1';c.font='9px system-ui';c.textAlign='left';
+        [0,-12,-24,-36,-48].forEach((v,i)=>c.fillText(String(v),w*.77,top+5+i*(height-5)/4));
       }
-    } finally {
-      editingMedia = false; cleanLocalFiles(); syncMediaControls();
+      const scope=surfaces[1];
+      if(scope.width && scope.height) {
+        const c=scope.ctx,w=scope.width,h=scope.height;
+        c.strokeStyle='#3e6978';c.lineWidth=.5;c.beginPath();c.moveTo(12,h/2);c.lineTo(w-12,h/2);c.stroke();
+        if(waveData && playing) {
+          c.strokeStyle='#78e7ed';c.lineWidth=1.4;c.beginPath();
+          for(let i=0;i<256;i++) { const x=12+i/255*(w-24), y=h/2+waveData[i*4]*(h*.4); if(i)c.lineTo(x,y);else c.moveTo(x,y); } c.stroke();
+        }
+      }
+      const r=surfaces[2];
+      for(let i=0;i<history.length;i++) {
+        const x=10+i/history.length*(r.width-20), amplitude=Math.max(1,history[i]*(r.height-10));
+        r.ctx.fillStyle=i/history.length>.7?'#efdc9d':'#62dce9';
+        r.ctx.globalAlpha=history[i]>.005 ? .9 : .2;
+        r.ctx.fillRect(x,(r.height-amplitude)/2,Math.max(1,(r.width-20)/history.length-2),amplitude);
+      }
+      r.ctx.globalAlpha=1;
     }
-  }
-  $('#media-apply').addEventListener('click', () => replaceMedia());
-  $('#media-reset').addEventListener('click', () => replaceMedia(true));
-  window.addEventListener('beforeunload', () => { for (const url of localUrls) URL.revokeObjectURL(url); });
+    setupMeters();
+    requestAnimationFrame(drawFeedback);
 
-  // ---------------- pads ----------------
-  const scenesEl = $('#scenes'), lightsEl = $('#lights');
-  function pad({ name, key, mode, color, label }) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'pad'; b.style.setProperty('--pad', rgb(color));
-    b.innerHTML = '<span class="pad-name"></span><span class="pad-key"></span><span class="pad-mode"></span>';
-    b.querySelector('.pad-name').textContent = name; b.querySelector('.pad-key').textContent = key.toUpperCase(); b.querySelector('.pad-mode').textContent = mode;
-    b.setAttribute('aria-label', `${label || name}, key ${key.toUpperCase()}`); b.setAttribute('aria-pressed', 'false');
-    return b;
-  }
-  scenesEl.style.setProperty('--count', Math.max(SCENES.length, 1));
-  SCENES.forEach((sc, i) => {
-    const b = pad({ name: sc.name, key: SCENE_KEYS[i], mode: `${sc.voices.length} light${sc.voices.length === 1 ? '' : 's'}`, color: sc.voices[0]?.color || FALLBACK_COLORS[i % 5] });
-    b.addEventListener('click', () => pressScene(i)); scenesEl.append(b);
-  });
-  if (!SCENES.length) say('No scenes found. Add scenes in config.js, then reload.');
-  function buildLights() {
-    lightsEl.innerHTML = '';
-    const scene = current;
-    $('#scene-name').textContent = scene ? SCENES[scene.index].name : 'no scene yet';
-    for (let j = 0; j < 4; j++) {
-      const v = scene && scene.voices[j];
-      const b = pad({ name: v ? (v.def.name || `Light ${j + 1}`) : '—', key: LIGHT_KEYS[j], mode: 'Light', color: v ? (v.def.color || FALLBACK_COLORS[j]) : '#9ab5c2' });
-      if (!v) b.disabled = true;
-      b.addEventListener('click', () => toggleLight(j)); lightsEl.append(b);
-    }
-    const off = pad({ name: 'All off', key: OFF_KEY, mode: 'Back to the still', color: '#9ab5c2', label: 'All lights off' });
-    off.disabled = !scene; off.addEventListener('click', allOff); lightsEl.append(off);
-    syncMediaControls();
-  }
-  buildLights();
-  function updatePads(t) {
-    [...scenesEl.children].forEach((b, i) => {
-      const live = (current && current.index === i && !fade) || (fade && incoming && incoming.index === i && t >= fade.t0);
-      b.setAttribute('aria-pressed', String(!!live));
-      const waiting = change && change.index === i && !(fade && t >= fade.t1);
-      b.classList.toggle('pending', !!waiting);
-      b.style.setProperty('--progress', waiting && change.t ? clamp((t - change.from) / Math.max(0.05, change.t - change.from), 0, 1) : 0);
-      b.disabled = !!(change && change.index !== i);
-    });
-    const lights = [...lightsEl.children];
-    let offPending = false;
-    (current ? current.voices : []).forEach((v, j) => {
-      const b = lights[j]; if (!b) return;
-      if (v.pending && t >= v.pending.t) v.pending = null;
-      b.setAttribute('aria-pressed', String(rampValue(v.ramp, t) > 0.5));
-      b.classList.toggle('pending', !!v.pending);
-      b.style.setProperty('--progress', v.pending ? clamp((t - v.pending.from) / Math.max(0.05, v.pending.t - v.pending.from), 0, 1) : 0);
-      if (v.pending && !v.on) offPending = true;
-    });
-    if (lights[4]) lights[4].classList.toggle('pending', offPending && current.voices.every(v => !v.on));
-    const beat = Math.floor((t - T0) / BEAT + 1e-6);
-    [...$('#beats').children].forEach((d, i) => d.classList.toggle('on', ctx && t >= T0 && (((beat % 4) + 4) % 4) === i));
-  }
 
-  // ---------------- colour from the picture ----------------
-  const tintPixels = new Uint8Array(32 * 18 * 4);
-  let ambient = [40, 90, 110], glow = [73, 217, 234], lastTint = 0;
-  function sampleTint(x) {
-    drawMix(tintTarget, x); gl.readPixels(0, 0, 32, 18, gl.RGBA, gl.UNSIGNED_BYTE, tintPixels);
-    let r = 0, g = 0, b = 0, best = -1, hi = glow;
-    for (let i = 0; i < tintPixels.length; i += 4) {
-      const R = tintPixels[i], G = tintPixels[i + 1], B = tintPixels[i + 2]; r += R; g += G; b += B;
-      const mx = Math.max(R, G, B), score = (mx - Math.min(R, G, B)) * mx; if (score > best) { best = score; hi = [R, G, B]; }
-    }
-    const n = tintPixels.length / 4, peak = Math.max(...hi, 1);
-    ambient = ambient.map((c, i) => c + ([r / n, g / n, b / n][i] - c) * 0.15);
-    glow = glow.map((c, i) => c + (hi[i] / peak * 235 + 20 - c) * 0.15);
-    const mix = (base, c, w) => base.map((v, i) => Math.round(v * (1 - w) + c[i] * w)).join(', ');
-    const root = document.documentElement.style;
-    root.setProperty('--bg-a', `rgb(${mix([76, 130, 146], ambient.map(c => c * 1.25), 0.4)})`);
-    root.setProperty('--bg-b', `rgb(${mix([22, 59, 74], ambient.map(c => c * 0.45), 0.35)})`);
-    root.setProperty('--glow', glow.map(Math.round).join(', '));
-  }
+}
 
-  // ---------------- audio feedback (from the original jukebox) ----------------
-  const history = new Float32Array(180), meterLevels = [0, 0];
-  const surfaces = ['meters', 'scope', 'ribbon'].map(id => { const c = document.getElementById(id); return { canvas: c, ctx: c.getContext('2d'), width: 0, height: 0 }; });
-  const observer = new ResizeObserver(() => surfaces.forEach(s => {
-    const rect = s.canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
-    s.width = rect.width; s.height = rect.height; s.canvas.width = Math.round(rect.width * dpr); s.canvas.height = Math.round(rect.height * dpr); s.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+const $ = id => document.getElementById(id);
+const canvas = $('picture'), drawing = canvas.getContext('2d', {alpha:false});
+const videos = [$('deck-a'), $('deck-b')];
+const slots = videos.map(video => ({video, url:null, clip:null}));
+let clips = [], bank = 0, sequence = 0, current = -1, activeClip = null, busy = false, paused = false;
+let context, master, gains, layer = null, layerArmed = false, transition = null;
+let recorder = null, recordingStarting = false, recordingStream = null, recordingAudio = null, recordingTimer = null, recordingTimeout = null;
+let take = null, takeURL = null, recordingStarted = 0, recordedChunks = [], recordingFailure = null, unsavedTake = false;
+const keys = ['1','2','3','4','5','q','w','e','r','t'];
+const isVideo = file => /\.(mp4|m4v|webm|mov)$/i.test(file.name) || file.type?.startsWith('video/');
+const pretty = name => name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ');
+function status(message, error=false) { $('status').textContent=message; $('status').dataset.error=String(error); }
+function setGain(index, value) { if(gains) { gains[index].gain.cancelScheduledValues(context.currentTime); gains[index].gain.setValueAtTime(value,context.currentTime); } }
+async function unlock() {
+  if(!context) {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if(!Audio) throw Error('This browser cannot play the audio mix. Open this file in Chrome or Edge.');
+    context = new Audio(); master = context.createGain(); master.gain.value=Number($('volume').value); master.connect(context.destination);
+    gains=videos.map(video=>{const node=context.createGain();node.gain.value=0;context.createMediaElementSource(video).connect(node);node.connect(master);return node;});
+    installMeters(master,context,videos);
+  }
+  await context.resume();
+}
+function release(slot) { slot.video.pause(); slot.video.removeAttribute('src'); slot.video.load(); if(slot.url) URL.revokeObjectURL(slot.url); slot.url=null; slot.clip=null; }
+function removeLayer() {
+  if(layer) { release(layer); layer.video.remove(); }
+  layer=null; layerArmed=false;
+  $('layer-state').textContent='No layer. Start with two takes from the same camera position.';
+  render();
+}
+function resetPlayback() {
+  slots.forEach((slot,i)=>{release(slot);setGain(i,0);});
+  current=-1;activeClip=null;transition=null;paused=false;removeLayer();
+  $('empty').hidden=false;
+  $('empty').querySelector('strong').textContent='A world at your fingertips.';
+  $('empty').querySelector('span').textContent='Tap a pad to play its picture and sound.';
+  paint();
+}
+function render() {
+  const children=[...$('pads').children];
+  for(let i=0;i<10;i++) {
+    const clip=clips[bank*10+i], button=children[i];
+    const playing=!!clip && clip===activeClip, layered=!!clip && clip===layer?.clip;
+    button.disabled=!clip || busy;
+    button.setAttribute('aria-pressed',String(playing||layered));
+    button.classList.toggle('layered',layered);
+    button.querySelector('.pad-name').textContent=clip?pretty(clip.file.name):'Empty';
+    button.querySelector('.pad-role').textContent=playing?(paused?'PAUSED':'PLAYING'):layered?'LIGHT LAYER':'';
+    button.title=clip?clip.path:'Choose videos to fill this pad';
+    button.setAttribute('aria-label',clip?`Pad ${i+1}: ${clip.path}${playing?', playing':''}${layered?', light layer':''}`:`Pad ${i+1}: empty`);
+  }
+  $('paging').hidden=clips.length<=10;
+  $('bank-label').textContent=`${bank+1} / ${Math.max(1,Math.ceil(clips.length/10))}`;
+  $('previous-bank').disabled=busy||bank===0;$('next-bank').disabled=busy||(bank+1)*10>=clips.length;
+  $('pause').disabled=current<0||busy; $('pause').textContent=paused?'Play':'Pause';
+  $('arm-layer').disabled=current<0||busy||paused;
+  $('arm-layer').setAttribute('aria-pressed',String(layerArmed));
+  $('arm-layer').textContent=layerArmed?'Cancel layer choice':layer?'Change layer':'Layer a clip';
+  $('clear-layer').disabled=(!layer&&!layerArmed)||busy;
+  $('layer-amount').disabled=!layer||busy;
+  const recording=!!recorder||recordingStarting;
+  $('record').disabled=current<0||busy||recordingStarting||!!recorder&&recorder.state==='inactive';
+  $('choose-folder').disabled=busy||recording; $('choose-files').disabled=busy||recording;
+  $('replacement').disabled=!clips.length||busy||recording; $('replace-pad').disabled=!clips.length||busy||recording;
+  $('playing-label').hidden=current<0;
+  $('playing-label').textContent=activeClip?`${paused?'Paused · ':''}${pretty(activeClip.file.name)}${layer?' + '+pretty(layer.clip.file.name)+' (light)':''}`:'';
+}
+function updateReplacementChoices() {
+  $('replace-pad').replaceChildren(...clips.map((clip,i)=>{
+    const option=document.createElement('option');option.value=String(i);option.textContent=`${i+1} · ${clip.path}`;return option;
   }));
-  surfaces.forEach(s => observer.observe(s.canvas));
-  function drawFeedback() {
-    const live = ctx && ctx.state === 'running' && (current || incoming);
-    let rms = 0;
-    if (analyser && live) { analyser.getFloatTimeDomainData(waveData); for (const x of waveData) rms += x * x; rms = Math.sqrt(rms / waveData.length); } else if (waveData) waveData.fill(0);
-    history.copyWithin(0, 1); history[history.length - 1] = Math.min(1, rms * 3);
-    surfaces.forEach(s => s.ctx.clearRect(0, 0, s.width, s.height));
-    const m = surfaces[0], c = m.ctx, w = m.width, h = m.height;
-    if (w && h) {
-      const top = 20, height = Math.max(20, h - 48), count = 26;
-      for (let ch = 0; ch < 2; ch++) {
-        let peak = 0;
-        if (channels && live) { channels[ch].getFloatTimeDomainData(channelData[ch]); for (const x of channelData[ch]) peak = Math.max(peak, Math.abs(x)); }
-        const level = clamp((20 * Math.log10(Math.max(peak, 0.001)) + 48) / 48, 0, 1);
-        meterLevels[ch] = Math.max(level, meterLevels[ch] * 0.88);
-        const x = w * (ch ? 0.52 : 0.22), bar = Math.max(9, w * 0.12);
-        for (let i = 0; i < count; i++) { c.fillStyle = i / count < meterLevels[ch] ? (ch ? '#f1d785' : '#52dfef') : '#244955'; c.fillRect(x, top + height - (i + 1) * height / count, bar, Math.max(2, height / count - 3)); }
-        c.fillStyle = '#c4dfe5'; c.font = '10px system-ui'; c.textAlign = 'center'; c.fillText(ch ? 'R' : 'L', x + bar / 2, h - 12);
+}
+function chooseFiles(files) {
+  if(busy||recorder||recordingStarting) return;
+  const selected=Array.from(files).filter(isVideo).sort((a,b)=>(a.webkitRelativePath||a.name).localeCompare(b.webkitRelativePath||b.name,undefined,{numeric:true,sensitivity:'base'}));
+  if(!selected.length) { status('No video files found. Choose MP4, WebM, M4V or MOV files.',true);return; }
+  resetPlayback();
+  clips=selected.map(file=>({id:++sequence,file,path:file.webkitRelativePath||file.name}));bank=0;
+  updateReplacementChoices();render();
+  const folder=selected[0].webkitRelativePath?.split('/')[0];
+  $('library-label').textContent=`${folder?folder+' · ':''}${clips.length} video${clips.length===1?'':'s'}`;
+  status(`${clips.length} video${clips.length===1?'':'s'} ready. Tap a pad to play.`);
+}
+// A failed load leaves the currently playing clip intact. Only commit a new slot after it displays a frame.
+async function loadSlot(slot,clip) {
+  release(slot);slot.clip=clip;slot.url=URL.createObjectURL(clip.file);
+  const video=slot.video;
+  let timer,onError,onData;
+  const failed=new Promise((_,reject)=>{
+    timer=setTimeout(()=>reject(Error(`“${clip.file.name}” did not start within 15 seconds. Try that pad again or choose another video.`)),15000);
+    onError=()=>reject(Error(`Could not play “${clip.file.name}”. Choose a playable MP4 or WebM; your previous clip is still available.`));
+    video.addEventListener('error',onError,{once:true});
+  });
+  const ready=new Promise(resolve=>{onData=resolve;video.addEventListener('loadeddata',onData,{once:true});});
+  try {
+    video.src=slot.url;video.load();
+    await Promise.race([Promise.all([video.play(),ready]),failed]);
+  } catch(error) {release(slot);throw Error(`Could not play “${clip.file.name}”. ${error.message}`);}
+  finally {clearTimeout(timer);video.removeEventListener('error',onError);video.removeEventListener('loadeddata',onData);}
+}
+async function playClip(clip,button) {
+  if(!clip||busy) return;
+  if(layerArmed&&clip===activeClip){status('Choose a different clip for the light layer.');return;}
+  busy=true;render();button?.classList.add('pending');
+  let candidate=null;
+  try {
+    await unlock();
+    if(layerArmed) {
+      // A temporary video lets an unsuccessful layer replacement retain the previous layer.
+      const video=document.createElement('video');video.loop=true;video.playsInline=true;video.muted=true;video.preload='auto';$('media-pool').append(video);
+      candidate={video,url:null,clip:null};
+      status(`Loading light layer: ${clip.file.name}…`);await loadSlot(candidate,clip);
+      if(layer){const old=layer;release(old);old.video.remove();}
+      layer=candidate;candidate=null;layerArmed=false;
+      $('layer-state').textContent=`${clip.file.name} · light only. Music continues from ${activeClip.file.name}.`;
+      status('Light layer added. Adjust Amount, or tap another pad to return to ordinary playback.');
+    } else {
+      const previous=current,next=current===0?1:0,slot=slots[next];
+      setGain(next,0);status(`Loading ${clip.file.name}…`);await loadSlot(slot,clip);
+      removeLayer();
+      $('empty').hidden=true;
+      if(previous>=0) {
+        const duration=Number($('fade-seconds').value),start=context.currentTime;
+        setGain(previous,paused?0:1);gains[previous].gain.linearRampToValueAtTime(0,start+duration);
+        gains[next].gain.linearRampToValueAtTime(1,start+duration);
+        transition={previous,next,start,duration};
+        await new Promise(resolve=>{
+          function step(){if((context.currentTime-start)>=duration){resolve();return;}requestAnimationFrame(step);}step();
+        });
+        release(slots[previous]);setGain(previous,0);
       }
-      c.fillStyle = '#a7c7d1'; c.font = '9px system-ui'; c.textAlign = 'left';
-      [0, -12, -24, -36, -48].forEach((v, i) => c.fillText(String(v), w * 0.77, top + 5 + i * (height - 5) / 4));
+      current=next;activeClip=clip;transition=null;paused=false;setGain(next,1);
+      status(`${clip.file.name} — playing its embedded sound. A silent source remains silent.`);
     }
-    const sc = surfaces[1];
-    if (sc.width && sc.height) {
-      const c2 = sc.ctx, w2 = sc.width, h2 = sc.height;
-      c2.strokeStyle = '#3e6978'; c2.lineWidth = 0.5; c2.beginPath(); c2.moveTo(12, h2 / 2); c2.lineTo(w2 - 12, h2 / 2); c2.stroke();
-      if (waveData && live) { c2.strokeStyle = '#78e7ed'; c2.lineWidth = 1.4; c2.beginPath(); for (let i = 0; i < 256; i++) { const x = 12 + i / 255 * (w2 - 24), y = h2 / 2 + waveData[i * 4] * (h2 * 0.4); if (i) c2.lineTo(x, y); else c2.moveTo(x, y); } c2.stroke(); }
-    }
-    const r = surfaces[2];
-    for (let i = 0; i < history.length; i++) {
-      const x = 10 + i / history.length * (r.width - 20), amp = Math.max(1, history[i] * (r.height - 10));
-      r.ctx.fillStyle = i / history.length > 0.7 ? '#efdc9d' : '#62dce9'; r.ctx.globalAlpha = history[i] > 0.005 ? 0.9 : 0.2;
-      r.ctx.fillRect(x, (r.height - amp) / 2, Math.max(1, (r.width - 20) / history.length - 2), amp);
-    }
-    r.ctx.globalAlpha = 1;
-  }
-
-  // ---------------- frame loop ----------------
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  let lastFeedback = 0;
-  function frame(ms) {
-    requestAnimationFrame(frame);
-    const t = now();
-    for (let i = waiters.length - 1; i >= 0; i--) if (t >= waiters[i].t) { waiters[i].resolve(); waiters.splice(i, 1); }
-    if (glReady) {
-      drawScene(current, t, targets[0]);
-      if (incoming) drawScene(incoming, t, targets[1]);
-      const x = fade ? (current ? clamp((t - fade.t0) / (fade.t1 - fade.t0), 0, 1) : (t >= fade.t0 ? 1 : 0)) : 0;
-      drawMix(null, incoming ? x : 0);
-      if ((current || incoming) && ms - lastTint > 150) { lastTint = ms; sampleTint(incoming ? x : 0); }
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      $('#empty').hidden = !!(current || (incoming && fade && t >= fade.t0));
-    }
-    updatePads(t);
-    if (!document.hidden && ms - lastFeedback > (reducedMotion.matches ? 150 : 33)) { lastFeedback = ms; drawFeedback(); }
-  }
-
-  // ---------------- transport and keys ----------------
-  const volume = $('#volume');
-  volume.addEventListener('input', () => {
-    volume.style.setProperty('--volume', `${Number(volume.value) * 100}%`);
-    $('#volume-value').textContent = `${Math.round(Number(volume.value) * 100)}%`;
-    if (master) master.gain.setTargetAtTime(Number(volume.value), ctx.currentTime, 0.02);
-  });
-  const allVideos = () => [current, incoming].filter(Boolean).flatMap(s => s.voices.map(v => v.video));
-  async function togglePause() {
-    if (!ctx) return;
-    if (playing) { await ctx.suspend(); allVideos().forEach(v => v.pause()); playing = false; $('#pause').textContent = 'Play'; say('Paused.'); }
-    else { playing = true; await ctx.resume(); allVideos().forEach(v => v.play().catch(() => {})); $('#pause').textContent = 'Pause'; say('Playing.'); }
-  }
-  $('#pause').addEventListener('click', togglePause);
-  document.addEventListener('keydown', e => {
-    if (e.target.closest('input, select, textarea') || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
-    const k = e.key.toLowerCase();
-    if (k === ' ') { if (e.target.closest('button')) return; e.preventDefault(); togglePause(); return; }
-    const s = SCENE_KEYS.indexOf(k); if (s >= 0) { e.preventDefault(); pressScene(s); return; }
-    const l = LIGHT_KEYS.indexOf(k); if (l >= 0) { e.preventDefault(); toggleLight(l); return; }
-    if (k === OFF_KEY) { e.preventDefault(); allOff(); }
-  });
-
-  if (gl) { try { initGL(); glReady = true; } catch (error) { say(`WebGL setup failed: ${error.message}`); } }
-  else say('This browser could not start WebGL, which the mixer needs. Try current Chrome, Edge or Firefox.');
-  requestAnimationFrame(frame);
-})();
+    button?.classList.add('hit');setTimeout(()=>button?.classList.remove('hit'),450);
+  } catch(error){status(error.message,true);if(candidate){release(candidate);candidate.video.remove();}}
+  finally{busy=false;button?.classList.remove('pending');render();paint();}
+}
+function drawVideo(video,alpha=1,operation='source-over') {
+  if(video.readyState<2||!video.videoWidth||!video.videoHeight)return;
+  const scale=Math.min(canvas.width/video.videoWidth,canvas.height/video.videoHeight),w=video.videoWidth*scale,h=video.videoHeight*scale;
+  drawing.globalCompositeOperation=operation;drawing.globalAlpha=alpha;
+  drawing.drawImage(video,(canvas.width-w)/2,(canvas.height-h)/2,w,h);
+}
+function paint() {
+  drawing.globalAlpha=1;drawing.globalCompositeOperation='source-over';drawing.fillStyle='#06222e';drawing.fillRect(0,0,canvas.width,canvas.height);
+  if(transition){drawVideo(videos[transition.previous]);drawVideo(videos[transition.next],Math.min(1,(context.currentTime-transition.start)/transition.duration));}
+  else if(current>=0)drawVideo(videos[current]);
+  if(layer)drawVideo(layer.video,Number($('layer-amount').value),'lighten');
+  drawing.globalAlpha=1;drawing.globalCompositeOperation='source-over';
+}
+// One canvas is both the displayed picture and the recording source.
+let lastPaint=0;
+function frame(now){requestAnimationFrame(frame);if(now-lastPaint<1000/30)return;lastPaint=now;paint();}
+requestAnimationFrame(frame);
+for(let i=0;i<10;i++) {
+  const button=document.createElement('button');button.className='pad';button.type='button';
+  for(const cls of ['pad-number','pad-name','pad-role']){const span=document.createElement('span');span.className=cls;span.textContent=cls==='pad-number'?String(i+1):'';button.append(span);}
+  button.addEventListener('click',()=>playClip(clips[bank*10+i],button));$('pads').append(button);
+}
+$('choose-folder').onclick=()=>$('folder-input').click();$('choose-files').onclick=()=>$('files-input').click();
+for(const id of ['folder-input','files-input'])$(id).addEventListener('change',event=>{chooseFiles(event.target.files);event.target.value='';});
+$('previous-bank').onclick=()=>{if(bank&&!busy){bank--;render();}};
+$('next-bank').onclick=()=>{if(!busy&&(bank+1)*10<clips.length){bank++;render();}};
+$('replacement').addEventListener('change',event=>{
+  const file=event.target.files[0],index=Number($('replace-pad').value);event.target.value='';
+  if(!file||!clips[index]||busy||recorder||recordingStarting)return;
+  if(!isVideo(file)){status('Choose a video file for this pad.',true);return;}
+  clips[index]={id:++sequence,file,path:file.name};updateReplacementChoices();$('replace-pad').value=String(index);render();
+  status(`Pad ${index+1} now holds ${file.name}. Tap it to play; the current performance continues.`);
+});
+$('arm-layer').onclick=()=>{if(current<0||busy||paused)return;layerArmed=!layerArmed;status(layerArmed?'Tap a different pad to add its picture as a light layer.':'Layer choice cancelled. Pads play normally.');render();};
+$('clear-layer').onclick=()=>{if(busy)return;removeLayer();status('Layer removed. The current clip keeps playing.');};
+$('layer-amount').oninput=()=>{$('layer-value').textContent=`${Math.round(Number($('layer-amount').value)*100)}%`;paint();};
+$('volume').oninput=()=>{const value=Number($('volume').value);$('volume').style.setProperty('--volume',`${value*100}%`);$('volume-value').textContent=`${Math.round(value*100)}%`;if(master)master.gain.setTargetAtTime(value,context.currentTime,.02);};
+$('pause').onclick=async()=>{
+  if(current<0||busy)return;
+  if(paused){try{await unlock();await Promise.all([videos[current].play(),layer?.video.play()]);paused=false;status('Playing.');}catch{videos[current].pause();layer?.video.pause();status('Playback could not resume. Tap Play again.',true);}}
+  else{videos[current].pause();layer?.video.pause();paused=true;status('Paused. Press Play to continue.');}
+  render();
+};
+document.addEventListener('keydown',event=>{
+  if(event.repeat||event.ctrlKey||event.metaKey||event.altKey||event.target.closest('input,select,textarea,summary'))return;
+  const index=keys.indexOf(event.key.toLowerCase());if(index>=0){event.preventDefault();$('pads').children[index].click();}
+});
+function recordingMessage(message){$('record-status').textContent=message;}
+function recordingCleanup(){
+  clearInterval(recordingTimer);clearTimeout(recordingTimeout);recordingTimer=null;recordingTimeout=null;
+  recordingStream?.getTracks().forEach(track=>track.stop());
+  if(recordingAudio)master.disconnect(recordingAudio);
+  recordingStream=null;recordingAudio=null;recorder=null;recordingStarting=false;
+  $('record').setAttribute('aria-pressed','false');$('record').textContent='● Record';render();
+}
+function stopRecording(){
+  if(!recorder||recorder.state==='inactive')return;
+  recordingMessage('Finishing video…');
+  const recording=recorder;
+  recordingTimeout=setTimeout(()=>{if(recorder!==recording)return;recording.onstop=null;recordingCleanup();recordingMessage('The browser did not finish recording. Any previous saved take remains available.');},10000);
+  recording.stop();render();
+}
+$('record').onclick=async()=>{
+  if(recorder){stopRecording();return;}if(current<0||busy||recordingStarting)return;
+  recordingStarting=true;render();
+  try{
+    const mime=['video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(type=>window.MediaRecorder?.isTypeSupported(type));
+    if(!mime||!canvas.captureStream)throw Error('Video recording is unavailable here. Try Chrome or Edge.');
+    await unlock();paint();
+    recordingAudio=context.createMediaStreamDestination();master.connect(recordingAudio);
+    recordingStream=canvas.captureStream(24);recordingStream.addTrack(recordingAudio.stream.getAudioTracks()[0]);
+    const recording=recorder=new MediaRecorder(recordingStream,{mimeType:mime,videoBitsPerSecond:6000000});
+    recordedChunks=[];recordingFailure=null;recordingStarted=performance.now();
+    recording.ondataavailable=event=>{if(event.data.size)recordedChunks.push(event.data);};
+    recording.onerror=event=>{recordingFailure=event.error?.message||'Recording failed.';stopRecording();};
+    recording.onstop=()=>{
+      if(recorder!==recording)return;
+      const blob=new Blob(recordedChunks,{type:recording.mimeType});recordedChunks=[];
+      recordingCleanup();
+      if(recordingFailure||!blob.size){recordingMessage(recordingFailure||'No video was captured. Your previous take remains available.');return;}
+      if(takeURL)URL.revokeObjectURL(takeURL);take=blob;takeURL=URL.createObjectURL(blob);unsavedTake=true;
+      $('save-performance').disabled=false;recordingMessage('Take ready. Save video before closing.');
+    };
+    recording.start(1000);recordingStarting=false;$('record').setAttribute('aria-pressed','true');$('record').textContent='■ Stop';
+    const tick=()=>recordingMessage(`Recording · ${((performance.now()-recordingStarted)/1000).toFixed(1)} s`);tick();recordingTimer=setInterval(tick,250);render();
+  }catch(error){recordingCleanup();recordingMessage(error.message);}
+};
+$('save-performance').onclick=()=>{
+  if(!takeURL)return;
+  const link=document.createElement('a');link.href=takeURL;link.download=`pixel-rhythms-mix-${new Date().toISOString().replace(/[:.]/g,'-')}.${take.type.includes('mp4')?'mp4':'webm'}`;
+  document.body.append(link);link.click();link.remove();unsavedTake=false;recordingMessage('Download requested. You can Save video again.');
+};
+window.addEventListener('beforeunload',event=>{if(recorder||unsavedTake){event.preventDefault();event.returnValue='';}});
+window.addEventListener('pagehide',()=>{slots.forEach(release);if(layer)release(layer);if(takeURL)URL.revokeObjectURL(takeURL);context?.close();});
+render();paint();
 </script>
 </body>
 </html>
