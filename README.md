@@ -2,9 +2,9 @@
 
 A tactile browser instrument for playing visual music. Work in progress.
 
-**Start here on the `mixer` branch:** open **[mixer/index.html](mixer/index.html)** in Chrome or Edge, choose your video folder, then tap a pad. This is the current local mixer: ordinary video files with their embedded audio, the familiar glass pad interface, recording, and one optional light blend. No media pack, server, setup command or API key is needed. [Short guide](mixer/README.md).
+**Start here on the `mixer` branch:** open **[mixer/index.html](mixer/index.html)** and click **Play Amber demo**. Two sample videos, including audio, are embedded in the file. The visible mixer has Deck A/B previews, a crossfader, automatic fades, Dissolve/Brightest/Add light, soundtrack selection, sound-to-light pulsing, scene color and recording. **Choose video folder** loads your own originals. No server or installation is required to play. [Short guide](mixer/README.md).
 
-The previous scene-pack mixer is preserved in [Git history](https://github.com/kprasad1221/pixel-rhythms-jukebox/tree/8654b5b0624e37c9d4a0a3427334ba16059eb3b1/mixer). Its configuration, archives and tests have been retired from the current `mixer/` folder so there is one active experiment.
+The previous scene-pack mixer remains in [Git history](https://github.com/kprasad1221/pixel-rhythms-jukebox/tree/8654b5b0624e37c9d4a0a3427334ba16059eb3b1/mixer). `mixer/index.html` is the current entry point.
 
 **Omni prototype:** this branch adds a separate [ten-pad Reactor experiment](omni/README.md) in `omni/`. The original single-file Jukebox below is unchanged. Start with the prototype's local setup and Play loops mode.
 

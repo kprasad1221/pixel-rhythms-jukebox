@@ -1,77 +1,101 @@
-# Pixel Rhythms — Local Mixer
+# Pixel Rhythms — Two-Deck Mixer · 02
 
-**One entry point: `mixer/index.html`.** This reset returns to the Jukebox's glass screen, pads, audio feedback, fades, and recording. One pad means one ordinary video file, with its embedded soundtrack.
+Open **`mixer/index.html`**. Click **Play Amber demo** in the main picture.
 
-## Open and play
+Two Memory Basin Amber clips are embedded in this HTML, with audio. A fresh clone can start without selecting files, restoring a media pack, running a server or opening an account. The starter copies are 896 × 512 previews; select your own original downloads for full source quality.
 
-In your existing checkout, run these in PowerShell:
+## Update the existing Windows checkout
+
+Using KP's current checkout:
 
 ```powershell
-cd D:\Projects\pixel-rhythms-mixer
+cd D:\Projects\TEMP\pixel-rhythms-mixer
 git pull --ff-only
 Start-Process .\mixer\index.html
 ```
 
-Or double-click `mixer/index.html` and open it in Chrome or Edge. No server or package installation is needed to play. If your old local server is still running, Ctrl+C stops it. Serving this same file at `/mixer/` still works, but is optional.
+Close the previous tab first so the versions are easy to distinguish. The new screen says **TWO-DECK MIXER · 02**. The same HTML also works through the existing static server if preferred. To stop playback, use **Pause** or close the tab. To stop an old static server, Ctrl+C in its PowerShell window.
 
-1. Click **Choose video folder** and choose the folder holding your original Krea downloads. Alternatively, **Choose videos** selects a few files.
-2. Tap a numbered pad. Its video and embedded audio play together.
-3. Tap a different pad to crossfade. **Pause** pauses the picture and sound. Closing the tab stops playback.
+## First play
 
-Use the original downloads from Krea for this check. The earlier ZIP's compressed videos have no audio; they will still play as silent video. There is no separate music file to restore or configure.
+1. **Play Amber demo** starts A on air and prepares B in its preview.
+2. Move the crossfader toward B, or press **Fade to B**. In **Dissolve**, the picture and embedded sound follow the fader.
+3. Press **50 / 50**, then choose **Brightest** or **Add light** under Picture.
+4. Choose **Deck A only** under Music to keep its soundtrack while mixing pictures.
+5. Raise **Sound → light** to try brightness responding to the mixed music. **Scene color** changes the surrounding glow from colors sampled from the loaded clips.
 
-## Keep files simple
+The entire mixing panel stays on the main surface. Each deck holds one complete audiovisual clip. This version does not claim separate extracted lamps, fog or geometry, or multiple independent light voices within each deck.
 
-- Keep the videos in any local folder you like. Nothing has to be copied next to the app.
-- MP4, WebM, M4V and MOV files are offered as pads. Actual decoding depends on the browser and the codecs inside the file; the original Memory Basin samples are H.264 + AAC MP4.
-- A selected folder includes videos in its subfolders. Pads follow natural alphabetical path order: `01 Memory Basin Amber A.mp4`, `02 Memory Basin Amber B.mp4`, etc. Naming is optional; UUID filenames also work.
-- More than ten videos appear on additional pages of ten pads. Arrows change which pads are shown without interrupting playback.
-- **Change one clip** replaces one pad's assignment. The old clip keeps playing until you tap the replacement.
-- To refresh a folder after adding/replacing/deleting files in Windows, select that folder again. This replaces the current set and stops playback; it does not watch the folder automatically.
-- Folder/file selections last for the tab. Select the folder again after reloading or reopening. The app does not keep stale copies in browser storage.
-- Files stay on your device. This HTML has no external scripts, network requests, server, configuration manifest, image references, separate audio requirement or API calls. Its content security policy blocks network connections.
+## Own videos and folders
 
-## One mixing experiment
+**Choose video folder** lists videos in a local folder and its subfolders. **Choose videos** selects individual files. Imports change the available pad list while the current decks keep playing.
 
-1. Play **Memory Basin Amber A**.
-2. Expand **Try a light blend** and click **Layer a clip**.
-3. Tap **Memory Basin Amber B**, then move **Amount**.
-4. **Remove layer** returns to A alone. Tapping a pad normally starts ordinary playback and clears the layer after the new clip loads successfully.
+Click **Deck A** or **Deck B**, then tap a pad to load it into that deck. Its preview and label show the assignment. **Replace selected deck…** chooses one local video directly without changing the pad library. A failed, timed-out or canceled replacement keeps the previous working deck.
 
-The layer contributes picture only. Music stays with the base clip, avoiding two complete soundtracks playing over each other. **Change layer** selects a different visual layer. Both pictures pause/resume together.
+- Filenames become pad labels. No prescribed names or companion JSON, WAV or reference images are required.
+- Pads sort naturally by their folder path and filename. Subfolders appear in **Scene / folder**; more than ten clips use additional pad pages. Selecting a folder/group only changes browsing.
+- Use original Krea MP4 downloads to retain their soundtrack. The older compressed ZIP clips were silent; they can still play as silent video.
+- File choices last for the tab. Choose the folder again after changing files on disk, refreshing or reopening. The app does not watch folders or keep persistent browser copies.
+- Local files remain on the device. The HTML makes no network requests and its content security policy blocks connections.
+- Source decoding remains at original resolution, so very large replacements can cost more GPU/CPU work. The displayed/recorded composition is 1280 × 720.
 
-This uses Canvas `lighten`: at full amount it keeps the brighter channel values from both images; Amount interpolates the result over the base. It blends complete frames. It does not extract independent lamps, fog or geometry. Matching camera views will usually be easier to read; moving views can overlap visibly. There is no beat synchronization, time stretching or promise of exact loop seams.
+## What the controls mean
 
-## Record
+| Control | Behavior |
+| --- | --- |
+| Deck A / Deck B | Selects which deck receives the next pad/file. The other deck keeps playing. |
+| Crossfader | Moves between A and B. In Follow fader, audio gains are `1 − x` and `x`. |
+| Fade to A/B | Moves the fader automatically over the chosen number of seconds. Manual movement cancels the automatic fade. |
+| Dissolve | The usual picture crossfade. |
+| Brightest | Combines weighted whole frames by keeping their maximum channel values. Both frames have full weight at the center; endpoints show only A or B. |
+| Add light | Adds the weighted frames; the center may brighten or clip. Endpoints still show only A or B. |
+| Music | Follows the fader or holds one deck's soundtrack. |
+| Sound → light | Smoothed audio amplitude increases image brightness. It is not kick detection. Requires Canvas filter support. |
+| Scene color | Samples a representative color when each clip loads and blends the surrounding accent with the fader. It is not a frame-by-frame color analysis. |
+| Changes / Clock | Now, next beat or next bar on an adjustable manual clock, initially 120 BPM. Applies to prepared clip assignments and automatic fades. |
+| Pause | Pauses both decks and the manual clock. |
+| Record / Stop / Save video | Records the displayed mix and master audio, including fades and brightness effects. |
 
-Play a pad, then **Record → Stop → Save video**. The displayed canvas is also the recording source, so the mix and fades use the same rendering path. The master audio includes volume and fades; the visual layer remains silent. Recording requests 1280 × 720 at 24 fps; the source videos are decoded at their original resolution. Keep the tab visible during recording. Save the take before closing.
+The clock schedules actions after media is ready. It does not analyze the videos' tempo, time-stretch audio, synchronize the clips' internal rhythms or make loop seams exact. The supplied Krea clips keep their native durations. Matching camera views are the most straightforward place to compare bright blending; camera motion can produce overlapping contours.
 
-Opening a new folder and replacing pad files are disabled while recording. Pad playback, mixing and pause remain usable. Stopping a recording stops its recording tracks, while playback continues. A completed take remains available until replaced by another successful recording or the page closes.
+Keyboard: **1–5 / Q–T** load the currently visible pads, **D** switches the target deck, and **X** starts a fade toward the other side.
 
-## Validation and limits — November 2, 2026
+## Recording
 
-- Downloaded the original Krea Memory Basin Amber A and B links: both are 1344 × 768 H.264 MP4s with AAC audio, 5.184 seconds each. Both decode fully with FFmpeg without reported errors.
-- Ten checks run the actual shipped HTML's interaction code with simulated browser media: empty startup, folders and more than ten pads, embedded-audio routing, crossfade, muted layering, failed-load rollback, one-file replacement, folder reselection, recording lifecycle, and keyboard input after clicking a pad.
+The displayed canvas is also the recording source. Record requests 1280 × 720 at 24 fps with the master audio mix. Keep the tab visible while recording; background browser throttling may affect capture. Use **Record → Stop → Save video** and save before closing.
+
+Folder changes and file replacement dialogs are disabled while recording. The already listed pads, fader, picture modes, music selection and pause remain usable. Stopping a recording releases the recording tracks while leaving deck playback running. A previous completed take remains available if a new recording fails.
+
+## What was checked — November 2, 2026
+
+- Both embedded MP4 previews fully decode with FFmpeg and contain H.264 video plus AAC audio. The original Amber A/B downloads also decode successfully.
+- Twelve tests run the shipped app's state and interaction code with simulated browser media: embedded startup/demo, audio routing, crossfade/automation, folder paging, failed-load recovery, cancellation/timeout, manual clock scheduling, pause, recording lifecycle, brightness routing and direct deck replacement.
+- Four tests use a real Canvas implementation to check blend pixel values: all endpoints, Dissolve midpoint, Brightest midpoint, Add light midpoint. These are rendering-arithmetic tests, not a browser video test.
 - JavaScript syntax and Git whitespace checks pass.
-- **Real browser playback, audible output, visual quality, saved-file playback, Windows performance and phone/tablet layout are not verified for this reset.** Local Chromium launch is restricted and the remote browser blocks local-file URLs. The logic checks do not substitute for a browser playtest.
+- **Real browser playback, audible mixing, file export playback, responsive layout and laptop/iPad performance remain unverified for this build.** The execution environment restricts local Chromium, and the remote browser blocks local-file URLs. The tests above do not establish end-to-end browser success.
 
-Developer checks only (not required to play): `npm --prefix mixer ci`, then `npm --prefix mixer test`. Test fixtures simulate media and canvas; they do not claim pixel or sound verification.
+Developer checks, not needed to use the app:
 
-## What was reset
+```sh
+npm --prefix mixer ci
+npm --prefix mixer test
+```
 
-The original root Jukebox and `omni/` app are unchanged. This reset replaces only the experimental mixer and its documentation/tests. Earlier attempts remain recoverable in Git:
+The bundled starter data lives in the `starter-media` JSON block inside the HTML, with a still poster in its CSS. It adds about 2.3 MB of base64 data but removes a separate media-copy step. Application logic is below that block. User-selected files always use their original bytes through local Blob URLs; the app does not recompress imports.
 
-- [Pack-based mixer before reset](https://github.com/kprasad1221/pixel-rhythms-jukebox/tree/8654b5b0624e37c9d4a0a3427334ba16059eb3b1/mixer)
-- [Earlier two-deck study](https://github.com/kprasad1221/pixel-rhythms-jukebox/blob/8654b5b0624e37c9d4a0a3427334ba16059eb3b1/mixer/archive/two-deck-study.html)
+## Sources and continuity
 
-The old `config.js`, `data.json` expectations, reference-image comparisons and scene-pack audio loaders are not used. Locally copied `mixer/media/` files can stay where they are; this app ignores them until selected through its picker.
+Starter material is KP's supplied Krea output, with its existing soundtrack:
 
-## Continuity
+- [Memory Basin Amber A — original](https://app-uploads.krea.ai/public/dcd47bc6-ed29-43c9-ac9b-c5b63b1e47d4-video.mp4)
+- [Memory Basin Amber B — original](https://app-uploads.krea.ai/public/8cf45d12-2fbf-4a93-9a80-b8a2ed7f05a3-video.mp4)
 
-The reviewed field logs establish the design footing, not tests of this reset:
+Preview preparation: 896-pixel width, H.264 CRF 24, AAC 128 kb/s, original duration (~5.184 s). The poster is a frame from Amber A.
 
-- [Reactor H3 handoff and source map](https://app.notion.com/p/3e41f16ba962817d8144cdd570f83673)
+The UI direction comes from KP's supplied two-deck Claude study and the existing Jukebox. The scene-pack loader, prepared music beds, reference-image subtraction and prior scene analysis are not part of this file.
+
+- [Reactor H3 handoff](https://app.notion.com/p/3e41f16ba962817d8144cdd570f83673)
 - [One-screen playback and recording milestone](https://app.notion.com/p/3fc1f16ba962817e8098d7742e644398)
-- [Scenes, cascading pads and finding a simpler interface](https://app.notion.com/p/4001f16ba9628129be9ef0b1a2b9ffb1)
-- [Compare one JavaScript mixing gesture](https://app.notion.com/p/4021f16ba96281fb8a46e710a388ba67)
-- Browser API references: [folder selection](https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory), [Canvas blending](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/globalCompositeOperation).
+- [Simpler scenes and pads](https://app.notion.com/p/4001f16ba9628129be9ef0b1a2b9ffb1)
+- [One JavaScript mixing gesture](https://app.notion.com/p/4021f16ba96281fb8a46e710a388ba67)
+- Browser references: [Canvas blends](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/globalCompositeOperation), [Canvas filters](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/filter), [folder selection](https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory).
